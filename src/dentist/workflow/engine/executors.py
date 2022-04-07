@@ -8,6 +8,16 @@ class AbstractExecutor(ABC):
         raise NotImplemented("Define exeuction method.")
 
 
+class JobFailed(Exception):
+    def __init__(self, job, reason):
+        super().__init__()
+        self.job = job
+        self.reason = reason
+
+    def __str__(self):
+        return f"job `{self.job.name}` failed: {self.reason}"
+
+
 class LocalExecutor(AbstractExecutor):
     def __call__(self, jobs, *, dry_run, print_commands, threads=1):
         if dry_run:
@@ -45,13 +55,3 @@ class LocalExecutor(AbstractExecutor):
             subprocess.run(job.to_command(), check=True)
         except subprocess.CalledProcessError as reason:
             raise JobFailed(job, reason)
-
-
-class JobFailed(Exception):
-    def __init__(self, job, reason):
-        super().__init__()
-        self.job = job
-        self.reason = reason
-
-    def __str__(self):
-        return f"job `{self.job.name}` failed: {self.reason}"
