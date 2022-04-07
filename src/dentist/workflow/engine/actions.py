@@ -20,14 +20,11 @@ class AbstractAction(ABC):
 
 
 class ShellScript(AbstractAction):
-    def __init__(self, commands=[], shell=["/usr/bin/bash", "-euo", "pipefail", "-c"]):
+    def __init__(self, *commands, shell=["/usr/bin/bash", "-euo", "pipefail", "-c"]):
         super().__init__()
-        if isinstance(commands, ShellCommand):
-            self.commands = [commands]
-        else:
-            for command in commands:
-                assert isinstance(command, ShellCommand)
-            self.commands = commands
+        for command in commands:
+            assert isinstance(command, ShellCommand)
+        self.commands = commands
         self.shell = shell
 
     def append(self, command):
@@ -47,6 +44,9 @@ class ShellCommand(object):
 
     def append(self, part):
         self.parts.append(shell_escape(str(part)))
+
+    def __add__(self, part):
+        self.append(part)
 
     def stdin(self, file_path):
         self._stdin = self.__get_path(file_path)
