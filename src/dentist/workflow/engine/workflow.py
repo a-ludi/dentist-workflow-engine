@@ -172,7 +172,7 @@ class Job(AbstractAction):
     def is_done(self):
         return self._is_done
 
-    def done():
+    def done(self):
         self._is_done = True
 
     def to_command(self):
