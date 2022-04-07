@@ -46,7 +46,7 @@ class Workflow(object):
     def enqueue_job(self, *, name, inputs, outputs, action):
         params = self.__preprare_params(locals().copy())
         action = self.__prepare_action(action, params)
-        self.__enqueue_job(Job(action=action, **params))
+        return self.__enqueue_job(Job(action=action, **params))
 
     def __preprare_params(self, params):
         del params["self"]
@@ -78,10 +78,13 @@ class Workflow(object):
             self.job_queue.append(job)
         else:
             log.debug(f"skipping job {job.name}: all outputs are up-to-date")
+
         if job.name not in self.jobs:
             self.jobs[job.name] = job
+
+            return job
         else:
-            raise
+            raise DuplicateJob(self.jobs[job.name], job)
 
     def _check_inputs(self, inputs):
         missing_inputs = [input for input in inputs if not input.exists()]
