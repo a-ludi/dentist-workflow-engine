@@ -11,11 +11,14 @@ log = logging.getLogger(__name__)
 
 
 def workflow(definition):
-    def wrapper(*args, dry_run=False, print_commands=False, executor=None, **kwargs):
+    def wrapper(
+        *args, dry_run=False, print_commands=False, executor=None, threads=1, **kwargs
+    ):
         definition.__globals__["workflow"] = Workflow(
             name=definition.__name__,
             dry_run=dry_run,
             print_commands=print_commands,
+            threads=threads,
         )
         definition(*args, **kwargs)
         definition.__globals__["workflow"].flush_jobs(final=True)
@@ -25,12 +28,19 @@ def workflow(definition):
 
 class Workflow(object):
     def __init__(
-        self, name, *, executor="LocalExecutor", dry_run=False, print_commands=False
+        self,
+        name,
+        *,
+        executor="LocalExecutor",
+        dry_run=False,
+        print_commands=False,
+        threads=1,
     ):
         self.name = name
         self.executor = self.__make_executor(executor)
         self.dry_run = dry_run
         self.print_commands = print_commands
+        self.threads = threads
         self.job_queue = []
         self.jobs = dict()
 
@@ -138,6 +148,7 @@ class Workflow(object):
                 self.job_queue,
                 dry_run=self.dry_run,
                 print_commands=self.print_commands,
+                threads=self.threads,
             )
             # mark jobs as done
             for job in self.job_queue:
