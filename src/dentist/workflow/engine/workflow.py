@@ -1,6 +1,7 @@
 from . import executors
-from .executors import AbstractExecutor, JobFailure
+from .executors import AbstractExecutor, JobFailed
 from .actions import AbstractAction
+from enum import Enum
 from pathlib import Path
 import logging
 
@@ -162,14 +163,35 @@ class Workflow(object):
                 print_commands=self.print_commands,
                 threads=self.threads,
             )
-            # mark jobs as done
             for job in self.job_queue:
-                job.done()
+                assert job.state.is_done
             # reset job queue
             self.job_queue = []
-        except JobFailure as job_failure:
-            self._discard_files(job_failure.outputs())
+        except JobFailed as job_failure:
+            self._discard_files(job_failure.job.outputs)
             raise job_failure
+
+
+class JobState(Enum):
+    DONE = 0
+    WAITING = 1
+    FAILED = 2
+
+    @property
+    def is_waiting(self):
+        return self == JobState.WAITING
+
+    @property
+    def is_finished(self):
+        return not self.is_waiting
+
+    @property
+    def is_done(self):
+        return self == JobState.DONE
+
+    @property
+    def is_failed(self):
+        return self == JobState.FAILED
 
 
 class Job(AbstractAction):
@@ -178,17 +200,25 @@ class Job(AbstractAction):
         self.inputs = inputs
         self.outputs = outputs
         self.action = action
-        self._is_done = False
-
-    @property
-    def is_done(self):
-        return self._is_done
+        self.state = JobState.WAITING
+        self.id = None
 
     def done(self):
-        self._is_done = True
+        assert not self.state.is_finished
+        self.state = JobState.DONE
+
+    def failed(self):
+        assert not self.state.is_finished
+        self.state = JobState.FAILED
 
     def to_command(self):
         return self.action.to_command()
+
+    def describe(self):
+        if self.id is None:
+            return f"`{self.name}`"
+        else:
+            return f"`{self.name}` (id={self.id})"
 
 
 class DuplicateJob(Exception):

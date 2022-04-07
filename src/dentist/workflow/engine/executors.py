@@ -1,6 +1,18 @@
 from abc import ABC, abstractmethod
 from itertools import chain
+import logging
 import subprocess
+
+log = logging.getLogger(__name__)
+
+
+def report_job(job):
+    if job.state.is_waiting:
+        log.info(f"waiting for job {job.describe()}.")
+    elif job.state.is_done:
+        log.info(f"job {job.describe()} done.")
+    else:
+        log.error(f"job {job.describe()} FAILED.")
 
 
 class AbstractExecutor(ABC):
@@ -34,7 +46,7 @@ class JobFailed(JobFailure):
         return self.job.outputs
 
     def __str__(self):
-        return f"job `{self.job.name}` failed: {self.reason}"
+        return f"job {self.job.describe()} failed: {self.reason}"
 
 
 class JobBatchFailed(JobFailure):
@@ -61,6 +73,7 @@ class LocalExecutor(AbstractExecutor):
     def _dry_run(self, jobs, *, print_commands):
         if print_commands:
             for job in jobs:
+                job.done()
                 print(job)
 
     def _run_serial(self, jobs, *, print_commands):
@@ -91,7 +104,11 @@ class LocalExecutor(AbstractExecutor):
             print(job)
         try:
             subprocess.run(job.to_command(), check=True)
+            job.done()
+            report_job(job)
         except subprocess.CalledProcessError as reason:
+            job.failed()
+            report_job(job)
             if return_error:
                 return JobFailed(job, reason)
             else:
