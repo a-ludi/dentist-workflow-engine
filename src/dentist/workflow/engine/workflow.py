@@ -139,6 +139,11 @@ class Workflow(object):
                 dry_run=self.dry_run,
                 print_commands=self.print_commands,
             )
+            # mark jobs as done
+            for job in self.job_queue:
+                job.done()
+            # reset job queue
+            self.job_queue = []
         except JobFailed as job_failure:
             self._discard_files(job_failure.job.outputs)
             raise job_failure
@@ -150,6 +155,14 @@ class Job(AbstractAction):
         self.inputs = inputs
         self.outputs = outputs
         self.action = action
+        self._is_done = False
+
+    @property
+    def is_done(self):
+        return self._is_done
+
+    def done():
+        self._is_done = True
 
     def to_command(self):
         return self.action.to_command()
