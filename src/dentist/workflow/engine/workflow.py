@@ -12,13 +12,20 @@ log = logging.getLogger(__name__)
 
 def workflow(definition):
     def wrapper(
-        *args, dry_run=False, print_commands=False, executor=None, threads=1, **kwargs
+        *args,
+        dry_run=False,
+        print_commands=False,
+        executor=None,
+        threads=1,
+        force=False,
+        **kwargs,
     ):
         definition.__globals__["workflow"] = Workflow(
             name=definition.__name__,
             dry_run=dry_run,
             print_commands=print_commands,
             threads=threads,
+            force=force,
         )
         definition(*args, **kwargs)
         definition.__globals__["workflow"].flush_jobs(final=True)
@@ -35,12 +42,14 @@ class Workflow(object):
         dry_run=False,
         print_commands=False,
         threads=1,
+        force=False,
     ):
         self.name = name
         self.executor = self.__make_executor(executor)
         self.dry_run = dry_run
         self.print_commands = print_commands
         self.threads = threads
+        self.force = force
         self.job_queue = []
         self.jobs = dict()
 
@@ -83,8 +92,11 @@ class Workflow(object):
 
     def __enqueue_job(self, job):
         self._check_inputs(job.inputs)
-        if not self._is_up_to_date(job.inputs, job.outputs):
-            log.debug(f"queue job {job.name}")
+        if self.force or not self._is_up_to_date(job.inputs, job.outputs):
+            force_suffix = (
+                " (forced)" if self._is_up_to_date(job.inputs, job.outputs) else ""
+            )
+            log.debug(f"queued job {job.name}{force_suffix}")
             self.job_queue.append(job)
         else:
             log.debug(f"skipping job {job.name}: all outputs are up-to-date")
