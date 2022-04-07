@@ -1,5 +1,5 @@
 from . import executors
-from .executors import AbstractExecutor, JobFailed
+from .executors import AbstractExecutor, JobFailure
 from .actions import AbstractAction
 from pathlib import Path
 import logging
@@ -167,8 +167,8 @@ class Workflow(object):
                 job.done()
             # reset job queue
             self.job_queue = []
-        except JobFailed as job_failure:
-            self._discard_files(job_failure.job.outputs)
+        except JobFailure as job_failure:
+            self._discard_files(job_failure.outputs())
             raise job_failure
 
 
