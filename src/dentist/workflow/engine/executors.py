@@ -22,7 +22,7 @@ class LocalExecutor(AbstractExecutor):
     def __call__(self, jobs, *, dry_run, print_commands, threads=1):
         if dry_run:
             self._dry_run(jobs, print_commands=print_commands)
-        elif threads > 1:
+        elif threads > 1 and len(jobs) > 1:
             self._run_parallel(jobs, print_commands=print_commands, threads=threads)
         else:
             self._run_serial(jobs, print_commands=print_commands)
