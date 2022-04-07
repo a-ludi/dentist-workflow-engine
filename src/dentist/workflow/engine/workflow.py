@@ -173,6 +173,6 @@ class MissingInputs(Exception):
         self.files = files
 
     def __str__(self):
-        fnames = "\n{self.INDENT}".join(str(f) for f in self.files)
+        fnames = f"\n{self.INDENT}".join(str(f) for f in self.files)
 
         return f"missing input file(s):\n{self.INDENT}{fnames}"
