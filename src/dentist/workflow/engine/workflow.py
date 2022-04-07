@@ -106,7 +106,11 @@ class Workflow(object):
             ),
         )
 
-        return input_mtime <= output_mtime
+        if input_mtime == float("-inf"):
+            # no input is up-to-date iff output exists
+            return output_mtime > float("-inf")
+        else:
+            return input_mtime <= output_mtime
 
     def _discard_files(self, files):
         log.debug(f"discarding files: {', '.join(str(f) for f in files)}")
