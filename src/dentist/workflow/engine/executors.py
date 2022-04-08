@@ -16,8 +16,20 @@ def report_job(job):
 
 
 class AbstractExecutor(ABC):
-    @abstractmethod
     def __call__(self, jobs, *, dry_run, print_commands, threads):
+        if dry_run:
+            self._dry_run(jobs, print_commands=print_commands)
+        else:
+            self._run_jobs(jobs, print_commands=print_commands, threads=threads)
+
+    def _dry_run(self, jobs, *, print_commands):
+        if print_commands:
+            for job in jobs:
+                job.done()
+                print(job)
+
+    @abstractmethod
+    def _run_jobs(self, jobs, *, print_commands, threads):
         raise NotImplemented("Define exeuction method.")
 
 
@@ -62,19 +74,11 @@ class JobBatchFailed(JobFailure):
 
 
 class LocalExecutor(AbstractExecutor):
-    def __call__(self, jobs, *, dry_run, print_commands, threads=1):
-        if dry_run:
-            self._dry_run(jobs, print_commands=print_commands)
-        elif threads > 1 and len(jobs) > 1:
-            self._run_parallel(jobs, print_commands=print_commands, threads=threads)
-        else:
+    def _run_jobs(self, jobs, *, print_commands, threads=1):
+        if threads == 1 and len(jobs) <= 1:
             self._run_serial(jobs, print_commands=print_commands)
-
-    def _dry_run(self, jobs, *, print_commands):
-        if print_commands:
-            for job in jobs:
-                job.done()
-                print(job)
+        else:
+            self._run_parallel(jobs, print_commands=print_commands, threads=threads)
 
     def _run_serial(self, jobs, *, print_commands):
         for job in jobs:
