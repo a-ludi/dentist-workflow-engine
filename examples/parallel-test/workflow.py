@@ -15,7 +15,7 @@ def example_workflow(*, count, outdir):
             inputs=[],
             outputs=[outdir / f"file_{i}"],
             action=lambda: ShellScript(
-                ShellCommand(["sleep", "0.1"], stdout=outputs[0]),
+                ShellCommand(["sleep", "0.1"]),
                 ShellCommand(["echo", f"data-{i:05d}"], stdout=outputs[0]),
             ),
         )
