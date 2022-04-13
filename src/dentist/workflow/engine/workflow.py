@@ -10,6 +10,8 @@ import logging
 
 __all__ = [
     "DuplicateJob",
+    "FaultyFilesException",
+    "IncompleteOutputs",
     "MissingInputs",
     "workflow",
 ]
@@ -152,6 +154,19 @@ class Workflow(object):
         if len(missing_inputs) > 0:
             raise MissingInputs(missing_inputs)
 
+    def _check_outputs(self, inputs, outputs):
+        input_mtime = max(
+            float("-inf"),
+            float("-inf"),
+            *(input.stat().st_mtime for input in inputs),
+        )
+
+        return [
+            output
+            for output in outputs
+            if not output.exists() or output.stat().st_mtime < input_mtime
+        ]
+
     def _is_up_to_date(self, inputs, outputs):
         input_mtime = max(
             float("-inf"),
@@ -201,8 +216,14 @@ class Workflow(object):
                 print_commands=self.print_commands,
                 threads=self.threads,
             )
+
+            incomplete_outputs = []
             for job in self.job_queue:
                 assert job.state.is_done
+                incomplete_outputs.extend(self._check_outputs(job.inputs, job.outputs))
+            if len(incomplete_outputs) > 0:
+                raise IncompleteOutputs(incomplete_outputs)
+
             # reset job queue
             self.job_queue = []
         except JobFailed as job_failure:
@@ -281,8 +302,9 @@ class DuplicateJob(Exception):
         return f"duplicate job `{self.existing.name}`"
 
 
-class MissingInputs(Exception):
+class FaultyFilesException(Exception):
     INDENT = "  "
+    DESCRIPTION = "Faulty files"
 
     def __init__(self, files):
         super().__init__()
@@ -291,4 +313,12 @@ class MissingInputs(Exception):
     def __str__(self):
         fnames = f"\n{self.INDENT}".join(str(f) for f in self.files)
 
-        return f"missing input file(s):\n{self.INDENT}{fnames}"
+        return f"{description}:\n{self.INDENT}{fnames}"
+
+
+class MissingInputs(FaultyFilesException):
+    DESCRIPTION = "missing input file(s)"
+
+
+class IncompleteOutputs(FaultyFilesException):
+    DESCRIPTION = "missing or out-dated output file(s)"
