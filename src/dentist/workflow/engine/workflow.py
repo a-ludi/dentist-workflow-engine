@@ -6,7 +6,11 @@ from pathlib import Path
 import logging
 
 
-__all__ = ["workflow", "MissingInputs"]
+__all__ = [
+    "DuplicateJob",
+    "MissingInputs",
+    "workflow",
+]
 
 log = logging.getLogger(__name__)
 
