@@ -114,13 +114,13 @@ class Workflow(object):
                     )
             self.status_tracking_dir.mkdir(parents=True)
 
-    def enqueue_job(self, *, name, inputs, outputs, action):
+    def enqueue_job(self, *, name, index=None, inputs, outputs, action):
         params = self.__preprare_params(locals().copy())
         action = self.__prepare_action(action, params)
         job = self.__enqueue_job(Job(action=action, **params))
 
         if self.status_tracking:
-            job.enable_tracking(self.status_tracking_dir / job.hash())
+            job.enable_tracking(self.status_tracking_dir / job.hash)
 
         return job
 
@@ -153,17 +153,26 @@ class Workflow(object):
             force_suffix = (
                 " (forced)" if self._is_up_to_date(job.inputs, job.outputs) else ""
             )
-            log.debug(f"queued job {job.name}{force_suffix}")
+            log.debug(f"queued job {job.describe()}{force_suffix}")
             self.job_queue.append(job)
         else:
-            log.debug(f"skipping job {job.name}: all outputs are up-to-date")
+            log.debug(f"skipping job {job.describe()}: all outputs are up-to-date")
 
-        if job.name not in self.jobs:
-            self.jobs[job.name] = job
-
-            return job
+        if job.index is None:
+            jobs_db = self.jobs
+            job_id = job.name
         else:
-            raise DuplicateJob(self.jobs[job.name], job)
+            if job.name not in self.jobs:
+                self.jobs[job.name] = dict()
+            jobs_db = self.jobs[job.name]
+            job_id = job.index
+
+        if job_id not in jobs_db:
+            jobs_db[job_id] = job
+        else:
+            raise DuplicateJob(jobs_db[job_id], job)
+
+        return job
 
     def _check_inputs(self, inputs):
         missing_inputs = [input for input in inputs if not input.exists()]
@@ -270,10 +279,13 @@ class JobState(Enum):
 
 
 class Job(AbstractAction):
-    def __init__(self, *, name, inputs, outputs, action):
+    def __init__(self, *, name, index=None, inputs, outputs, action):
         self.name = name
         if not self.name.isidentifier():
-            raise Exception("Job names must be valid Python identifiers.")
+            raise ValueError("Job names must be valid Python identifiers.")
+        self.index = index
+        if self.index is not None and not isinstance(self.index, int):
+            raise ValueError("Job index must be None or integer.")
         self.inputs = inputs
         self.outputs = outputs
         self.action = action
@@ -302,12 +314,20 @@ class Job(AbstractAction):
 
     def describe(self):
         if self.id is None:
-            return f"`{self.name}`"
+            return f"`{self.fullname}`"
         else:
-            return f"`{self.name}` (id={self.id})"
+            return f"`{self.fullname}` (id={self.id})"
 
+    @property
+    def fullname(self):
+        if self.index is None:
+            return self.name
+        else:
+            return f"{self.name}.{self.index}"
+
+    @property
     def hash(self):
-        return md5(bytes(self.name, "utf-8")).hexdigest()
+        return md5(bytes(self.fullname, "utf-8")).hexdigest()
 
 
 class DuplicateJob(Exception):
@@ -317,7 +337,7 @@ class DuplicateJob(Exception):
         self.duplicate = duplicate
 
     def __str__(self):
-        return f"duplicate job `{self.existing.name}`"
+        return f"duplicate job `{self.existing.describe()}`"
 
 
 class FaultyFilesException(Exception):
