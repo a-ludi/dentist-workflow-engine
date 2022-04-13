@@ -2,7 +2,9 @@ from . import executors
 from .executors import AbstractExecutor, JobFailed
 from .actions import AbstractAction
 from enum import Enum
+from hashlib import md5
 from pathlib import Path
+from shutil import rmtree
 import logging
 
 
@@ -18,19 +20,28 @@ log = logging.getLogger(__name__)
 def workflow(definition):
     def wrapper(
         *args,
+        workflow_root=None,
         dry_run=False,
         print_commands=False,
         executor=None,
         threads=1,
         force=False,
+        workflow_dir=".workflow",
         **kwargs,
     ):
+        if workflow_root is None:
+            from sys import argv
+
+            workflow_root = Path(argv[0]).parent
+
         definition.__globals__["workflow"] = Workflow(
             name=definition.__name__,
+            workflow_root=workflow_root,
             dry_run=dry_run,
             print_commands=print_commands,
             threads=threads,
             force=force,
+            workflow_dir=workflow_dir,
         )
         definition(*args, **kwargs)
         definition.__globals__["workflow"].flush_jobs(final=True)
@@ -44,10 +55,12 @@ class Workflow(object):
         name,
         *,
         executor="LocalExecutor",
+        workflow_root,
         dry_run=False,
         print_commands=False,
         threads=1,
         force=False,
+        workflow_dir=".workflow",
     ):
         self.name = name
         self.executor = self.__make_executor(executor)
@@ -57,6 +70,22 @@ class Workflow(object):
         self.force = force
         self.job_queue = []
         self.jobs = dict()
+        self.workflow_root = Path(workflow_root)
+        self.workflow_dir = self.workflow_root / workflow_dir
+        self.status_tracking = self.executor.requires_status_tracking
+
+        if self.status_tracking:
+            self.status_tracking_dir = self.workflow_dir / "jobs"
+            if self.status_tracking_dir.exists():
+                try:
+                    rmtree(self.status_tracking_dir)
+                except Exception as reason:
+                    raise Exception(
+                        f"could not delete status tracking directory: {reason}\n"
+                        "\n"
+                        f"Please delete it manually: {self.status_tracking_dir}"
+                    )
+            self.status_tracking_dir.mkdir(parents=True)
 
     def __make_executor(self, executor):
         if isinstance(executor, AbstractExecutor):
@@ -70,7 +99,12 @@ class Workflow(object):
     def enqueue_job(self, *, name, inputs, outputs, action):
         params = self.__preprare_params(locals().copy())
         action = self.__prepare_action(action, params)
-        return self.__enqueue_job(Job(action=action, **params))
+        job = self.__enqueue_job(Job(action=action, **params))
+
+        if self.status_tracking:
+            job.enable_tracking(self.status_tracking_dir / job.hash())
+
+        return job
 
     def __preprare_params(self, params):
         del params["self"]
@@ -205,15 +239,24 @@ class Job(AbstractAction):
         self.outputs = outputs
         self.action = action
         self.state = JobState.WAITING
+        self.exit_code = -1
         self.id = None
 
     def done(self):
         assert not self.state.is_finished
         self.state = JobState.DONE
+        self.exit_code = 0
+        self.action.clean_up_tracking_status_file()
 
-    def failed(self):
+    def failed(self, exit_code):
         assert not self.state.is_finished
         self.state = JobState.FAILED
+        self.exit_code = exit_code
+        self.action.clean_up_tracking_status_file()
+
+    def enable_tracking(self, status_path):
+        super().enable_tracking(status_path)
+        self.action.enable_tracking(status_path)
 
     def to_command(self):
         return self.action.to_command()
@@ -223,6 +266,9 @@ class Job(AbstractAction):
             return f"`{self.name}`"
         else:
             return f"`{self.name}` (id={self.id})"
+
+    def hash(self):
+        return md5(bytes(self.name, "utf-8")).hexdigest()
 
 
 class DuplicateJob(Exception):

@@ -16,6 +16,8 @@ def report_job(job):
 
 
 class AbstractExecutor(ABC):
+    requires_status_tracking = False
+
     def __call__(self, jobs, *, dry_run, print_commands, threads):
         if dry_run:
             self._dry_run(jobs, print_commands=print_commands)

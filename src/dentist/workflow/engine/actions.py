@@ -11,28 +11,71 @@ __all__ = ["ShellScript", "ShellCommand"]
 
 
 class AbstractAction(ABC):
+    def __init__(self):
+        self.tracking_status_path = None
+
     @abstractmethod
     def to_command(self):
         raise NotImplementedError("Return command that executes the action.")
+
+    def enable_tracking(self, status_path):
+        self.tracking_status_path = Path(status_path)
+
+    def get_status(self):
+        tracking_status_path = getattr(self, "tracking_status_path", None)
+        assert isinstance(tracking_status_path, Path)
+
+        if not tracking_status_path.exists():
+            return -2
+
+        with open(tracking_status_path) as status_file:
+            # limit number of bytes for better security
+            exit_code = status_file.read(16)
+
+            if len(exit_code) == 0:
+                return -1
+            else:
+                return int(exit_code)
+
+    def clean_up_tracking_status_file(self):
+        tracking_status_path = getattr(self, "tracking_status_path", None)
+        if isinstance(tracking_status_path, Path) and tracking_status_path.exists():
+            tracking_status_path.unlink()
+
+    def __del__(self):
+        self.clean_up_tracking_status_file()
 
     def __str__(self):
         return " ".join(shell_escape(part) for part in self.to_command())
 
 
 class ShellScript(AbstractAction):
-    def __init__(self, *commands, shell=["/usr/bin/bash", "-euo", "pipefail", "-c"]):
+    def __init__(
+        self, *commands, shell=["/usr/bin/bash", "-c"], safe_mode="set -euo pipefail"
+    ):
         super().__init__()
         for command in commands:
             assert isinstance(command, ShellCommand)
         self.commands = commands
         self.shell = shell
+        self.safe_mode = safe_mode
 
     def append(self, command):
         assert isinstance(command, ShellCommand)
         self.commands.append(command)
 
     def to_command(self):
-        return self.shell + ["; ".join(str(command) for command in self.commands)]
+        script = "; ".join(str(command) for command in self.commands)
+        if self.safe_mode is not None:
+            script = f"{self.safe_mode}; {script}"
+
+        if self.tracking_status_path is not None:
+            status_path = shell_escape(str(self.tracking_status_path))
+            preface = f"touch {status_path}"
+            epilogue = f"S=$?; echo $S > {status_path}; exit $S"
+            script = f"{preface}; ( {script} ); {epilogue}"
+
+        return [*self.shell, script]
 
 
 class ShellCommand(object):
