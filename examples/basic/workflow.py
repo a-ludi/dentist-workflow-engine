@@ -12,22 +12,22 @@ def example_workflow(*, indir, outdir):
     # make sure outdir exists
     outdir.mkdir(parents=True, exist_ok=True)
 
-    workflow.enqueue_job(
+    workflow.collect_job(
         name="transform_foo",
         inputs=[indir / "foo.in"],
         outputs=[outdir / "foo.out"],
         action=to_upper_case,
     )
-    workflow.enqueue_job(
+    workflow.collect_job(
         name="transform_bar",
         inputs=[indir / "bar.in"],
         outputs=[outdir / "bar.out"],
         action=to_upper_case,
     )
 
-    workflow.flush_jobs()
+    workflow.execute_jobs()
 
-    workflow.enqueue_job(
+    workflow.collect_job(
         name="combine_results",
         inputs=[
             *workflow.jobs["transform_foo"].outputs,

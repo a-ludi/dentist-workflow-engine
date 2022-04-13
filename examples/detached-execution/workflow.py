@@ -10,7 +10,7 @@ def example_workflow(*, count, outdir):
 
     generated_files = list()
     for i in range(count):
-        job = workflow.enqueue_job(
+        job = workflow.collect_job(
             name=f"generate_{i}",
             inputs=[],
             outputs=[outdir / f"file_{i}"],
@@ -21,9 +21,9 @@ def example_workflow(*, count, outdir):
         )
         generated_files.extend(job.outputs)
 
-    workflow.flush_jobs()
+    workflow.execute_jobs()
 
-    workflow.enqueue_job(
+    workflow.collect_job(
         name="concat_results",
         inputs=generated_files,
         outputs=[outdir / "combined.out"],

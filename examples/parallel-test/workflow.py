@@ -10,7 +10,7 @@ def example_workflow(*, count, outdir):
     outdir.mkdir(parents=True, exist_ok=True)
 
     for i in range(count):
-        job = workflow.enqueue_job(
+        job = workflow.collect_job(
             name="generate",
             index=i,
             inputs=[],
@@ -20,9 +20,9 @@ def example_workflow(*, count, outdir):
                 ShellCommand(["echo", f"data-{i:05d}"], stdout=outputs[0]),
             ),
         )
-    workflow.flush_jobs()
+    workflow.execute_jobs()
 
-    workflow.enqueue_job(
+    workflow.collect_job(
         name="concat_results",
         inputs=list(
             chain.from_iterable(

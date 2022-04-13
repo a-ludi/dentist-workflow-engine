@@ -71,7 +71,7 @@ def workflow(definition):
             workflow_dir=workflow_dir,
         )
         definition(*args, **kwargs)
-        definition.__globals__["workflow"].flush_jobs(final=True)
+        definition.__globals__["workflow"].execute_jobs(final=True)
 
     return wrapper
 
@@ -114,10 +114,10 @@ class Workflow(object):
                     )
             self.status_tracking_dir.mkdir(parents=True)
 
-    def enqueue_job(self, *, name, index=None, inputs, outputs, action):
+    def collect_job(self, *, name, index=None, inputs, outputs, action):
         params = self.__preprare_params(locals().copy())
         action = self.__prepare_action(action, params)
-        job = self.__enqueue_job(Job(action=action, **params))
+        job = self.__collect_job(Job(action=action, **params))
 
         if self.status_tracking:
             job.enable_tracking(self.status_tracking_dir / job.hash)
@@ -147,7 +147,7 @@ class Workflow(object):
 
         return action
 
-    def __enqueue_job(self, job):
+    def __collect_job(self, job):
         self._check_inputs(job.inputs)
         if self.force or not self._is_up_to_date(job.inputs, job.outputs):
             force_suffix = (
@@ -218,11 +218,11 @@ class Workflow(object):
         for file in files:
             file.unlink(missing_ok=True)
 
-    def flush_jobs(self, *, final=False):
+    def execute_jobs(self, *, final=False):
         suffix = " (dry run)" if self.dry_run else ""
 
         if len(self.job_queue) > 0:
-            self.__flush_jobs()
+            self.__execute_jobs()
             if final:
                 log.info("all jobs done" + suffix)
             else:
@@ -233,7 +233,7 @@ class Workflow(object):
             else:
                 log.debug("no jobs to be flushed" + suffix)
 
-    def __flush_jobs(self):
+    def __execute_jobs(self):
         try:
             self.executor(
                 self.job_queue,
