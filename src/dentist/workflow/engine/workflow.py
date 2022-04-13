@@ -272,6 +272,8 @@ class JobState(Enum):
 class Job(AbstractAction):
     def __init__(self, *, name, inputs, outputs, action):
         self.name = name
+        if not self.name.isidentifier():
+            raise Exception("Job names must be valid Python identifiers.")
         self.inputs = inputs
         self.outputs = outputs
         self.action = action
