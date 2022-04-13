@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from itertools import chain
+from time import sleep
 import logging
 import subprocess
 
@@ -119,3 +120,51 @@ class LocalExecutor(AbstractExecutor):
                 return JobFailed(job, reason)
             else:
                 raise JobFailed(job, reason)
+
+
+class DetachedExecutor(AbstractExecutor):
+    requires_status_tracking = True
+
+    def __init__(self, *, submit_jobs, check_delay=15):
+        self.submit_jobs = submit_jobs
+        self.check_delay = check_delay
+
+    def _run_jobs(self, jobs, *, print_commands, threads=1):
+        self._submit_jobs(jobs, print_commands=print_commands)
+        self._wait_for_jobs(jobs)
+
+    def _print_jobs(self, jobs):
+        for job in jobs:
+            print(job)
+
+    def _submit_jobs(self, jobs, *, print_commands):
+        self._print_jobs(jobs)
+        job_ids = self.submit_jobs(jobs)
+        assert len(jobs) == len(job_ids)
+        for id, job in zip(job_ids, jobs):
+            job.id = id
+
+    def _wait_for_jobs(self, jobs):
+        finished = set()
+        while len(finished) < len(jobs):
+            sleep(self.check_delay)
+            job_statuses = [job.get_status() for job in jobs]
+
+            # update job tracking and issue messages
+            for job, status in zip(jobs, job_statuses):
+                if status >= 0:
+                    if job.id not in finished:
+                        finished.add(job.id)
+                        if status == 0:
+                            job.done()
+                            log.info(f"job {job.describe()} done.")
+                        else:
+                            job.failed(status)
+                            log.error(f"job {job.describe()} FAILED.")
+                else:
+                    log.debug(f"waiting for job {job.describe()}...")
+
+        # raise exception upon failure
+        failed = [job for job in jobs if job.state.is_failed]
+        if len(failed) > 0:
+            raise DetachedJobsFailed(failed)

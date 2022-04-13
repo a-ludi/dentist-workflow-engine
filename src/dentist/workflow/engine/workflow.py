@@ -20,12 +20,32 @@ log = logging.getLogger(__name__)
 
 
 def workflow(definition):
+    def make_executor(executor, *, submit_jobs, check_delay):
+        if executor is None:
+            if submit_jobs is None:
+                return executors.LocalExecutor()
+            else:
+                return executors.DetachedExecutor(
+                    submit_jobs=submit_jobs,
+                    check_delay=check_delay,
+                )
+
+        if isinstance(executor, AbstractExecutor):
+            return executor
+        elif isinstance(executor, str):
+            executor_class = getattr(executors, executor)
+            return executor_class()
+        elif issubclass(executor, AbstractExecutor):
+            return executor()
+
     def wrapper(
         *args,
         workflow_root=None,
         dry_run=False,
         print_commands=False,
         executor=None,
+        submit_jobs=None,
+        check_delay=15,
         threads=1,
         force=False,
         workflow_dir=".workflow",
@@ -39,6 +59,11 @@ def workflow(definition):
         definition.__globals__["workflow"] = Workflow(
             name=definition.__name__,
             workflow_root=workflow_root,
+            executor=make_executor(
+                executor,
+                submit_jobs=submit_jobs,
+                check_delay=check_delay,
+            ),
             dry_run=dry_run,
             print_commands=print_commands,
             threads=threads,
@@ -56,7 +81,7 @@ class Workflow(object):
         self,
         name,
         *,
-        executor="LocalExecutor",
+        executor,
         workflow_root,
         dry_run=False,
         print_commands=False,
@@ -65,7 +90,7 @@ class Workflow(object):
         workflow_dir=".workflow",
     ):
         self.name = name
-        self.executor = self.__make_executor(executor)
+        self.executor = executor
         self.dry_run = dry_run
         self.print_commands = print_commands
         self.threads = threads
@@ -88,15 +113,6 @@ class Workflow(object):
                         f"Please delete it manually: {self.status_tracking_dir}"
                     )
             self.status_tracking_dir.mkdir(parents=True)
-
-    def __make_executor(self, executor):
-        if isinstance(executor, AbstractExecutor):
-            return executor
-        elif isinstance(executor, str):
-            executor_class = getattr(executors, executor)
-            return executor_class()
-        elif issubclass(executor, AbstractExecutor):
-            return executor()
 
     def enqueue_job(self, *, name, inputs, outputs, action):
         params = self.__preprare_params(locals().copy())
