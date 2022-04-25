@@ -1,6 +1,7 @@
 from . import executors
 from .executors import AbstractExecutor, JobFailed
 from .actions import AbstractAction
+from .workdir import Workdir
 from enum import Enum
 from hashlib import md5
 from pathlib import Path
@@ -56,19 +57,19 @@ def workflow(definition):
 
             workflow_root = Path(argv[0]).parent
 
+        workdir = Workdir(Path(workflow_root) / workflow_dir)
         definition.__globals__["workflow"] = Workflow(
             name=definition.__name__,
-            workflow_root=workflow_root,
             executor=make_executor(
                 executor,
                 submit_jobs=submit_jobs,
                 check_delay=check_delay,
             ),
+            workdir=workdir,
             dry_run=dry_run,
             print_commands=print_commands,
             threads=threads,
             force=force,
-            workflow_dir=workflow_dir,
         )
         definition(*args, **kwargs)
         definition.__globals__["workflow"].execute_jobs(final=True)
@@ -82,12 +83,11 @@ class Workflow(object):
         name,
         *,
         executor,
-        workflow_root,
+        workdir,
         dry_run=False,
         print_commands=False,
         threads=1,
         force=False,
-        workflow_dir=".workflow",
     ):
         self.name = name
         self.executor = executor
@@ -97,22 +97,13 @@ class Workflow(object):
         self.force = force
         self.job_queue = []
         self.jobs = dict()
-        self.workflow_root = Path(workflow_root)
-        self.workflow_dir = self.workflow_root / workflow_dir
+        self.workdir = workdir
         self.status_tracking = self.executor.requires_status_tracking
 
         if self.status_tracking:
-            self.status_tracking_dir = self.workflow_dir / "jobs"
-            if self.status_tracking_dir.exists():
-                try:
-                    rmtree(self.status_tracking_dir)
-                except Exception as reason:
-                    raise Exception(
-                        f"could not delete status tracking directory: {reason}\n"
-                        "\n"
-                        f"Please delete it manually: {self.status_tracking_dir}"
-                    )
-            self.status_tracking_dir.mkdir(parents=True)
+            self.status_tracking_dir = self.workdir.acquire_dir(
+                "status", force_empty=True
+            )
 
     def collect_job(self, *, name, index=None, inputs, outputs, action):
         params = self.__preprare_params(locals().copy())
@@ -120,7 +111,7 @@ class Workflow(object):
         job = self.__collect_job(Job(action=action, **params))
 
         if self.status_tracking:
-            job.enable_tracking(self.status_tracking_dir / job.hash)
+            job.enable_tracking(self.status_tracking_dir.acquire_file(job.hash))
 
         return job
 
