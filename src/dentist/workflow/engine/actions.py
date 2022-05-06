@@ -1,10 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-
-try:
-    from shlex import quote as shell_escape
-except ImportError:
-    from pipes import quote as shell_escape
+from shlex import quote as shell_escape
 
 
 __all__ = ["ShellScript", "ShellCommand"]
