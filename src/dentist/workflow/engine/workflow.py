@@ -7,6 +7,7 @@ from enum import Enum
 from hashlib import md5
 from pathlib import Path
 from shutil import rmtree
+from importlib import import_module
 import logging
 
 
@@ -18,11 +19,16 @@ __all__ = [
     "workflow",
 ]
 
+__package_name = __name__
 log = logging.getLogger(__name__)
 
 
 def workflow(definition):
     def make_executor(executor, *, submit_jobs, check_delay, root_workdir, debug_flags):
+        if isinstance(submit_jobs, str):
+            submitter = import_module(f"..interfaces.{submit_jobs}", __package_name)
+            submit_jobs = submitter.submit_jobs
+
         if executor is None:
             optargs = {
                 "workdir": root_workdir.acquire_dir("job-scripts", force_empty=True),
@@ -309,6 +315,10 @@ class Job(AbstractAction):
         self.state = JobState.WAITING
         self.exit_code = -1
         self.id = None
+
+    @property
+    def is_batch(self):
+        return self.index is not None
 
     def done(self):
         assert not self.state.is_finished

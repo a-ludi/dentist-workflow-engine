@@ -1,0 +1,3 @@
+__default__:
+    ncpus: 1
+    mem:   1G
