@@ -93,6 +93,10 @@ class DetachedJobsFailed(JobFailure):
 
 
 class LocalExecutor(AbstractExecutor):
+    def __init__(self, *, optargs=dict()):
+        self.workdir = optargs.get("workdir", None)
+        self.debug_flags = optargs.get("debug_flags", set())
+
     def _run_jobs(self, jobs, *, print_commands, threads=1):
         if threads == 1 and len(jobs) <= 1:
             self._run_serial(jobs, print_commands=print_commands)
@@ -141,10 +145,10 @@ class LocalExecutor(AbstractExecutor):
 class DetachedExecutor(AbstractExecutor):
     requires_status_tracking = True
 
-    def __init__(self, *, submit_jobs, check_delay=15, workdir=None):
+    def __init__(self, *, submit_jobs, check_delay=15, optargs=dict()):
         self.submit_jobs = submit_jobs
         self.check_delay = check_delay
-        self.workdir = workdir
+        self.optargs = optargs
 
     def _run_jobs(self, jobs, *, print_commands, threads=1):
         self._submit_jobs(jobs, print_commands=print_commands)
@@ -158,8 +162,9 @@ class DetachedExecutor(AbstractExecutor):
         self._print_jobs(jobs)
         submit_params = signature(self.submit_jobs).parameters
         submit_args = dict()
-        if "workdir" in submit_params:
-            submit_args["workdir"] = self.workdir
+        for key, value in self.optargs.items():
+            if key in submit_params:
+                submit_args[key] = value
         job_ids = self.submit_jobs(jobs, **submit_args)
         assert len(jobs) == len(job_ids)
         for id, job in zip(job_ids, jobs):

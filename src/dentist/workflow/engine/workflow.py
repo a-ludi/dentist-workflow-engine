@@ -22,15 +22,19 @@ log = logging.getLogger(__name__)
 
 
 def workflow(definition):
-    def make_executor(executor, *, submit_jobs, check_delay, root_workdir):
+    def make_executor(executor, *, submit_jobs, check_delay, root_workdir, debug_flags):
         if executor is None:
+            optargs = {
+                "workdir": root_workdir.acquire_dir("job-scripts", force_empty=True),
+                "debug_flags": debug_flags,
+            }
             if submit_jobs is None:
-                return executors.LocalExecutor()
+                return executors.LocalExecutor(optargs=optargs)
             else:
                 return executors.DetachedExecutor(
                     submit_jobs=submit_jobs,
                     check_delay=check_delay,
-                    workdir=root_workdir.acquire_dir("job-scripts", force_empty=True),
+                    optargs=optargs,
                 )
 
         if isinstance(executor, AbstractExecutor):
@@ -53,6 +57,7 @@ def workflow(definition):
         force=False,
         workflow_dir=".workflow",
         resources="resources.yaml",
+        debug_flags=set(),
         **kwargs,
     ):
         log.info("Welcome to the DENTIST workflow engine!")
@@ -72,6 +77,7 @@ def workflow(definition):
                 submit_jobs=submit_jobs,
                 check_delay=check_delay,
                 root_workdir=workdir,
+                debug_flags=debug_flags,
             ),
             workdir=workdir,
             resources=resources,
@@ -79,6 +85,7 @@ def workflow(definition):
             print_commands=print_commands,
             threads=threads,
             force=force,
+            debug_flags=debug_flags,
         )
         definition.__globals__["workflow"] = _workflow
         log.info("Executing workflow `{_workflow.name}`")
@@ -101,6 +108,7 @@ class Workflow(object):
         print_commands=False,
         threads=1,
         force=False,
+        debug_flags=set(),
     ):
         self.name = name
         self.executor = executor
@@ -108,6 +116,7 @@ class Workflow(object):
         self.print_commands = print_commands
         self.threads = threads
         self.force = force
+        self.debug_flags = debug_flags
         self.job_queue = []
         self.jobs = dict()
         self.workdir = workdir
