@@ -1,6 +1,7 @@
 from . import executors
 from .executors import AbstractExecutor, JobFailed
 from .actions import AbstractAction
+from .resources import RootResources
 from .workdir import Workdir
 from enum import Enum
 from hashlib import md5
@@ -51,6 +52,7 @@ def workflow(definition):
         threads=1,
         force=False,
         workflow_dir=".workflow",
+        resources="resources.yaml",
         **kwargs,
     ):
         log.info("Welcome to the DENTIST workflow engine!")
@@ -62,6 +64,7 @@ def workflow(definition):
         log.debug("workflow_root={workflow_root}")
 
         workdir = Workdir(workflow_root / workflow_dir)
+        resources = RootResources.read(workflow_root / resources)
         _workflow = Workflow(
             name=definition.__name__,
             executor=make_executor(
@@ -71,6 +74,7 @@ def workflow(definition):
                 root_workdir=workdir,
             ),
             workdir=workdir,
+            resources=resources,
             dry_run=dry_run,
             print_commands=print_commands,
             threads=threads,
@@ -92,6 +96,7 @@ class Workflow(object):
         *,
         executor,
         workdir,
+        resources,
         dry_run=False,
         print_commands=False,
         threads=1,
@@ -106,6 +111,7 @@ class Workflow(object):
         self.job_queue = []
         self.jobs = dict()
         self.workdir = workdir
+        self.resources = resources
         self.status_tracking = self.executor.requires_status_tracking
 
         if self.status_tracking:
@@ -115,6 +121,7 @@ class Workflow(object):
 
     def collect_job(self, *, name, index=None, inputs, outputs, action):
         params = self.__preprare_params(locals().copy())
+        params["resources"] = self.resources[name]
         action = self.__prepare_action(action, params)
         job = self.__collect_job(Job(action=action, **params))
 
@@ -278,7 +285,7 @@ class JobState(Enum):
 
 
 class Job(AbstractAction):
-    def __init__(self, *, name, index=None, inputs, outputs, action):
+    def __init__(self, *, name, index=None, inputs, outputs, action, resources):
         self.name = name
         if not self.name.isidentifier():
             raise ValueError("Job names must be valid Python identifiers.")
@@ -288,6 +295,8 @@ class Job(AbstractAction):
         self.inputs = inputs
         self.outputs = outputs
         self.action = action
+        self.resources = resources
+        self.ncpus = self.resources.get("ncpus", 1)
         self.state = JobState.WAITING
         self.exit_code = -1
         self.id = None
