@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 
 
 def workflow(definition):
-    def make_executor(executor, *, submit_jobs, check_delay):
+    def make_executor(executor, *, submit_jobs, check_delay, root_workdir):
         if executor is None:
             if submit_jobs is None:
                 return executors.LocalExecutor()
@@ -29,6 +29,7 @@ def workflow(definition):
                 return executors.DetachedExecutor(
                     submit_jobs=submit_jobs,
                     check_delay=check_delay,
+                    workdir=root_workdir.acquire_dir("job-scripts", force_empty=True),
                 )
 
         if isinstance(executor, AbstractExecutor):
@@ -52,18 +53,22 @@ def workflow(definition):
         workflow_dir=".workflow",
         **kwargs,
     ):
+        log.info("Welcome to the DENTIST workflow engine!")
         if workflow_root is None:
             from sys import argv
 
             workflow_root = Path(argv[0]).parent
+        workflow_root = Path(workflow_root)
+        log.debug("workflow_root={workflow_root}")
 
-        workdir = Workdir(Path(workflow_root) / workflow_dir)
-        definition.__globals__["workflow"] = Workflow(
+        workdir = Workdir(workflow_root / workflow_dir)
+        _workflow = Workflow(
             name=definition.__name__,
             executor=make_executor(
                 executor,
                 submit_jobs=submit_jobs,
                 check_delay=check_delay,
+                root_workdir=workdir,
             ),
             workdir=workdir,
             dry_run=dry_run,
@@ -71,8 +76,11 @@ def workflow(definition):
             threads=threads,
             force=force,
         )
+        definition.__globals__["workflow"] = _workflow
+        log.info("Executing workflow `{_workflow.name}`")
         definition(*args, **kwargs)
         definition.__globals__["workflow"].execute_jobs(final=True)
+        log.info("Workflow `{_workflow.name}` finished.")
 
     return wrapper
 

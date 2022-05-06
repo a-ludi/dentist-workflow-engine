@@ -32,6 +32,9 @@ class Workdir(object):
 
     @_registered
     def acquire_dir(self, path, force_empty=False, exist_ok=False):
+        log.debug(
+            f"acquire_dir({path}, force_empty={force_empty}, exist_ok={exist_ok})"
+        )
         full_path = self.root / path
 
         if (force_empty or not exist_ok) and full_path.exists():
@@ -49,6 +52,7 @@ class Workdir(object):
 
     @_registered
     def acquire_file(self, path, exist_ok=False):
+        log.debug(f"acquire_file({path}, exist_ok={exist_ok})")
         full_path = self.root / path
 
         if not exist_ok and full_path.exists():
@@ -58,6 +62,7 @@ class Workdir(object):
                 f"Please delete it manually: {full_path}"
             )
 
-        self.acquire_dir(full_path.parent, exist_ok=True)
+        if not full_path.parent.exists():
+            self.acquire_dir(full_path.parent, exist_ok=True)
 
         return full_path
