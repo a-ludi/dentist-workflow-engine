@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from inspect import signature
 from itertools import chain
 from time import sleep
 import logging
@@ -140,9 +141,10 @@ class LocalExecutor(AbstractExecutor):
 class DetachedExecutor(AbstractExecutor):
     requires_status_tracking = True
 
-    def __init__(self, *, submit_jobs, check_delay=15):
+    def __init__(self, *, submit_jobs, check_delay=15, workdir=None):
         self.submit_jobs = submit_jobs
         self.check_delay = check_delay
+        self.workdir = workdir
 
     def _run_jobs(self, jobs, *, print_commands, threads=1):
         self._submit_jobs(jobs, print_commands=print_commands)
@@ -154,7 +156,11 @@ class DetachedExecutor(AbstractExecutor):
 
     def _submit_jobs(self, jobs, *, print_commands):
         self._print_jobs(jobs)
-        job_ids = self.submit_jobs(jobs)
+        submit_params = signature(self.submit_jobs).parameters
+        submit_args = dict()
+        if "workdir" in submit_params:
+            submit_args["workdir"] = self.workdir
+        job_ids = self.submit_jobs(jobs, **submit_args)
         assert len(jobs) == len(job_ids)
         for id, job in zip(job_ids, jobs):
             job.id = id
@@ -165,6 +171,7 @@ class DetachedExecutor(AbstractExecutor):
             sleep(self.check_delay)
 
             # update job tracking and issue messages
+            # breakpoint()
             for job in jobs:
                 if job.state.is_waiting:
                     status = job.get_status()
