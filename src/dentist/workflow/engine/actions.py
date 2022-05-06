@@ -51,7 +51,7 @@ class AbstractAction(ABC):
 
 class ShellScript(AbstractAction):
     def __init__(
-        self, *commands, shell=["/usr/bin/bash", "-c"], safe_mode="set -euo pipefail"
+        self, *commands, shell=["/bin/bash", "-c"], safe_mode="set -euo pipefail"
     ):
         super().__init__()
         for command in commands:
