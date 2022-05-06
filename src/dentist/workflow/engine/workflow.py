@@ -72,7 +72,7 @@ def workflow(definition):
 
             workflow_root = Path(argv[0]).parent
         workflow_root = Path(workflow_root)
-        log.debug("workflow_root={workflow_root}")
+        log.debug(f"workflow_root={workflow_root}")
 
         workdir = Workdir(workflow_root / workflow_dir)
         if resources is not None:
@@ -97,10 +97,10 @@ def workflow(definition):
             debug_flags=debug_flags,
         )
         definition.__globals__["workflow"] = _workflow
-        log.info("Executing workflow `{_workflow.name}`")
+        log.info(f"Executing workflow `{_workflow.name}`")
         definition(*args, **kwargs)
         definition.__globals__["workflow"].execute_jobs(final=True)
-        log.info("Workflow `{_workflow.name}` finished.")
+        log.info(f"Workflow `{_workflow.name}` finished.")
 
     return wrapper
 
