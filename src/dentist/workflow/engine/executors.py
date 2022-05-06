@@ -160,24 +160,24 @@ class DetachedExecutor(AbstractExecutor):
             job.id = id
 
     def _wait_for_jobs(self, jobs):
-        finished = set()
-        while len(finished) < len(jobs):
+        num_finished = 0
+        while num_finished < len(jobs):
             sleep(self.check_delay)
-            job_statuses = [job.get_status() for job in jobs]
 
             # update job tracking and issue messages
-            for job, status in zip(jobs, job_statuses):
-                if status >= 0:
-                    if job.id not in finished:
-                        finished.add(job.id)
+            for job in jobs:
+                if job.state.is_waiting:
+                    status = job.get_status()
+                    if status >= 0:
+                        num_finished += 1
                         if status == 0:
                             job.done()
                             log.info(f"job {job.describe()} done.")
                         else:
                             job.failed(status)
                             log.error(f"job {job.describe()} FAILED.")
-                else:
-                    log.debug(f"waiting for job {job.describe()}...")
+                    else:
+                        log.debug(f"waiting for job {job.describe()}...")
 
         # raise exception upon failure
         failed = [job for job in jobs if job.state.is_failed]
