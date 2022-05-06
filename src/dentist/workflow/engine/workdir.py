@@ -8,6 +8,19 @@ __all__ = ["Workdir"]
 log = logging.getLogger(__name__)
 
 
+def _registered(create_path):
+    def wrapper(self, path, *args, exist_ok=False, **kwargs):
+        if path in self._registry:
+            if not exist_ok:
+                raise Exception(f"workpath `{path}` has already been acquired")
+        result = create_path(self, path, *args, exist_ok=exist_ok, **kwargs)
+        self._registry.add(path)
+
+        return result
+
+    return wrapper
+
+
 class Workdir(object):
     def __init__(self, root, parent=None):
         self.root = Path(root)
@@ -16,19 +29,6 @@ class Workdir(object):
             self._registry = set()
         else:
             self._registry = parent._registry
-
-    @staticmethod
-    def _registered(create_path):
-        def wrapper(self, path, *args, exist_ok=False, **kwargs):
-            if path in self._registry:
-                if not exist_ok:
-                    raise Exception(f"workpath `{path}` has already been acquired")
-            result = create_path(self, path, *args, exist_ok=exist_ok, **kwargs)
-            self._registry.add(path)
-
-            return result
-
-        return wrapper
 
     @_registered
     def acquire_dir(self, path, force_empty=False, exist_ok=False):
