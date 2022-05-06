@@ -45,6 +45,7 @@ def main():
         print_commands=True,
         submit_jobs="slurm",
         check_delay=1,
+        resources="resources.yaml",
         debug_flags={"slurm"},
     )
 

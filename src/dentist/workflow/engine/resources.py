@@ -14,7 +14,7 @@ class RootResources(object):
         if not isinstance(data, dict):
             raise Exception("resources file must contain an object/dict at {where}")
 
-    def __init__(self, data):
+    def __init__(self, data={}):
         self._enforce_dict(data, "the root")
         self._default = data.get("__default__", dict())
         self._default.setdefault("ncpus", 1)

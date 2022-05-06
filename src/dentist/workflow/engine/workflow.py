@@ -62,7 +62,7 @@ def workflow(definition):
         threads=1,
         force=False,
         workflow_dir=".workflow",
-        resources="resources.yaml",
+        resources=None,
         debug_flags=set(),
         **kwargs,
     ):
@@ -75,7 +75,10 @@ def workflow(definition):
         log.debug("workflow_root={workflow_root}")
 
         workdir = Workdir(workflow_root / workflow_dir)
-        resources = RootResources.read(workflow_root / resources)
+        if resources is not None:
+            resources = RootResources.read(workflow_root / resources)
+        else:
+            resources = RootResources()
         _workflow = Workflow(
             name=definition.__name__,
             executor=make_executor(
