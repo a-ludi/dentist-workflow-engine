@@ -115,17 +115,27 @@ class ShellCommand(object):
         self.pipe(command)
 
     def __str__(self):
-        all_parts = self.parts
+        all_parts = [
+            self.__redirect("stdin"),
+            *self.parts,
+            self.__redirect("stdout"),
+            self.__redirect("stderr"),
+        ]
 
-        self.__append_redirection(all_parts, "_stdin", "<")
-        self.__append_redirection(all_parts, "_stdout", ">")
-        self.__append_redirection(all_parts, "_stderr", "2>")
+        return " ".join(p for p in all_parts if p is not None)
 
-        return " ".join(self.parts)
+    __redirect_op = {
+        "stdin": "<",
+        "stdout": ">",
+        "stderr": "2>",
+    }
 
-    def __append_redirection(self, all_parts, attr, redirection):
-        file_path = getattr(self, attr)
+    def __redirect(self, what):
+        file_path = getattr(self, f"_{what}")
 
-        if file_path is not None:
+        if file_path is None:
+            return None
+        else:
             esc_file = shell_escape(str(file_path))
-            all_parts.append(f"{redirection} {esc_file}")
+            op = self.__redirect_op[what]
+            return f"{op} {esc_file}"
