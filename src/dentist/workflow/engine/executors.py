@@ -76,6 +76,21 @@ class JobBatchFailed(JobFailure):
         )
 
 
+class DetachedJobsFailed(JobFailure):
+    def __init__(self, jobs, total_jobs):
+        super().__init__(jobs, "unspecified error")
+        self.total_jobs = total_jobs
+
+    def __str__(self):
+        job_specs = "\n".join(job.describe() for job in self.jobs)
+
+        return (
+            f"{len(self.jobs)} of {self.total_jobs} detached job(s) failed:\n"
+            f"{job_specs}\n"
+            "Check log files for details."
+        )
+
+
 class LocalExecutor(AbstractExecutor):
     def _run_jobs(self, jobs, *, print_commands, threads=1):
         if threads == 1 and len(jobs) <= 1:
@@ -167,4 +182,4 @@ class DetachedExecutor(AbstractExecutor):
         # raise exception upon failure
         failed = [job for job in jobs if job.state.is_failed]
         if len(failed) > 0:
-            raise DetachedJobsFailed(failed)
+            raise DetachedJobsFailed(failed, len(jobs))
