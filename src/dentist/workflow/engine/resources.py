@@ -60,10 +60,10 @@ class Resources(dict):
         tr={},
     ):
         def to_str(key, value):
-            is_short = len(key) == 1
-            prefix = str(short_opt_prefix if is_short else long_opt_prefix)
             key = str(key)
             key = tr.get(key, key)
+            is_short = len(key) == 1
+            prefix = str(short_opt_prefix if is_short else long_opt_prefix)
             sep = str(short_opt_sep if is_short else long_opt_sep)
             value = str(value)
 
