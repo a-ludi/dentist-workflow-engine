@@ -7,6 +7,7 @@ from enum import Enum
 from hashlib import md5
 from pathlib import Path
 from shutil import rmtree
+from sys import argv
 from importlib import import_module
 import logging
 
@@ -17,16 +18,127 @@ __all__ = [
     "IncompleteOutputs",
     "MissingInputs",
     "workflow",
+    "Workflow",
 ]
 
-__package_name = __name__
+_package_name = __name__
 log = logging.getLogger(__name__)
 
 
 def workflow(definition):
+    def wrapper(
+        *args,
+        workflow_root=None,
+        dry_run=False,
+        print_commands=False,
+        executor=None,
+        submit_jobs=None,
+        check_delay=15,
+        threads=1,
+        force=False,
+        workflow_dir=".workflow",
+        resources=None,
+        debug_flags=set(),
+        **kwargs,
+    ):
+        _workflow = Workflow(
+            definition=definition,
+            workflow_root=workflow_root,
+            dry_run=dry_run,
+            print_commands=print_commands,
+            executor=executor,
+            submit_jobs=submit_jobs,
+            check_delay=check_delay,
+            threads=threads,
+            force=force,
+            workflow_dir=workflow_dir,
+            resources=resources,
+            debug_flags=debug_flags,
+        )
+        _workflow(*args, **kwargs)
+
+    return wrapper
+
+
+class Workflow(object):
+    def __init__(
+        self,
+        *,
+        # --- functional interface ---
+        definition=None,
+        # --- directories ---
+        workflow_root=None,
+        workflow_dir=".workflow",
+        # --- operation control flags ---
+        dry_run=False,
+        force=False,
+        print_commands=False,
+        # --- execution configuration ---
+        threads=1,
+        resources=None,
+        executor=None,
+        submit_jobs=None,
+        check_delay=15,
+        # --- debug flags ---
+        debug_flags=set(),
+    ):
+        log.info("Welcome to the DENTIST workflow engine!")
+
+        # --- inheritance/functional interface ---
+        self.definition = definition
+        if definition is not None:
+            self.name = definition.__name__
+        elif type(self) != Workflow:
+            self.name = type(self).__name__
+        else:
+            raise ValueError(
+                "either definition must be given or class must be derived from Workflow"
+            )
+
+        # --- debug flags ---
+        self.debug_flags = debug_flags
+
+        # --- directories ---
+        if workflow_root is None:
+            workflow_root = Path(argv[0]).parent
+        else:
+            workflow_root = Path(workflow_root)
+        log.debug(f"workflow_root={workflow_root}")
+        self.workdir = Workdir(workflow_root / workflow_dir)
+        log.debug(f"workdir={self.workdir}")
+
+        # --- operation control flags ---
+        self.dry_run = dry_run
+        self.print_commands = print_commands
+        self.force = force
+
+        # --- execution configuration ---
+        self.threads = threads
+        if resources is None:
+            self.resources = RootResources()
+        else:
+            self.resources = RootResources.read(workflow_root / resources)
+        self.executor = self.make_executor(
+            executor,
+            submit_jobs=submit_jobs,
+            check_delay=check_delay,
+            root_workdir=self.workdir,
+            debug_flags=self.debug_flags,
+        )
+        self.status_tracking = self.executor.requires_status_tracking
+        if self.status_tracking:
+            self.status_tracking_dir = self.workdir.acquire_dir(
+                "status", force_empty=True
+            )
+
+        # --- job handling ---
+        self.job_queue = []
+        self.jobs = dict()
+
+    @staticmethod
     def make_executor(executor, *, submit_jobs, check_delay, root_workdir, debug_flags):
         if isinstance(submit_jobs, str):
-            submitter = import_module(f"..interfaces.{submit_jobs}", __package_name)
+            submitter = import_module(f"..interfaces.{submit_jobs}", _package_name)
             submit_jobs = submitter.submit_jobs
 
         if executor is None:
@@ -51,91 +163,21 @@ def workflow(definition):
         elif issubclass(executor, AbstractExecutor):
             return executor()
 
-    def wrapper(
-        *args,
-        workflow_root=None,
-        dry_run=False,
-        print_commands=False,
-        executor=None,
-        submit_jobs=None,
-        check_delay=15,
-        threads=1,
-        force=False,
-        workflow_dir=".workflow",
-        resources=None,
-        debug_flags=set(),
-        **kwargs,
-    ):
-        log.info("Welcome to the DENTIST workflow engine!")
-        if workflow_root is None:
-            from sys import argv
+    def __call__(self, *args, **kwargs):
+        log.info(f"Executing workflow `{self.name}`")
+        self.run(*args, **kwargs)
+        self.execute_jobs(final=True)
+        log.info(f"Workflow `{self.name}` finished.")
 
-            workflow_root = Path(argv[0]).parent
-        workflow_root = Path(workflow_root)
-        log.debug(f"workflow_root={workflow_root}")
+    def run(self, *args, **kwargs):
+        if self.definition is None:
+            if type(self) == Workflow:
+                raise ValueError("`definition` is missing")
+            else:
+                raise NotImplementedError("`self.run()` not implemented")
 
-        workdir = Workdir(workflow_root / workflow_dir)
-        if resources is not None:
-            resources = RootResources.read(workflow_root / resources)
-        else:
-            resources = RootResources()
-        _workflow = Workflow(
-            name=definition.__name__,
-            executor=make_executor(
-                executor,
-                submit_jobs=submit_jobs,
-                check_delay=check_delay,
-                root_workdir=workdir,
-                debug_flags=debug_flags,
-            ),
-            workdir=workdir,
-            resources=resources,
-            dry_run=dry_run,
-            print_commands=print_commands,
-            threads=threads,
-            force=force,
-            debug_flags=debug_flags,
-        )
-        definition.__globals__["workflow"] = _workflow
-        log.info(f"Executing workflow `{_workflow.name}`")
-        definition(*args, **kwargs)
-        definition.__globals__["workflow"].execute_jobs(final=True)
-        log.info(f"Workflow `{_workflow.name}` finished.")
-
-    return wrapper
-
-
-class Workflow(object):
-    def __init__(
-        self,
-        name,
-        *,
-        executor,
-        workdir,
-        resources,
-        dry_run=False,
-        print_commands=False,
-        threads=1,
-        force=False,
-        debug_flags=set(),
-    ):
-        self.name = name
-        self.executor = executor
-        self.dry_run = dry_run
-        self.print_commands = print_commands
-        self.threads = threads
-        self.force = force
-        self.debug_flags = debug_flags
-        self.job_queue = []
-        self.jobs = dict()
-        self.workdir = workdir
-        self.resources = resources
-        self.status_tracking = self.executor.requires_status_tracking
-
-        if self.status_tracking:
-            self.status_tracking_dir = self.workdir.acquire_dir(
-                "status", force_empty=True
-            )
+        self.definition.__globals__["workflow"] = self
+        self.definition(*args, **kwargs)
 
     def collect_job(self, *, name, index=None, inputs, outputs, action):
         params = self.__preprare_params(locals().copy())
