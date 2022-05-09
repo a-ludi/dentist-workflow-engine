@@ -381,7 +381,7 @@ class FaultyFilesException(Exception):
     def __str__(self):
         fnames = f"\n{self.INDENT}".join(str(f) for f in self.files)
 
-        return f"{description}:\n{self.INDENT}{fnames}"
+        return f"{self.DESCRIPTION}:\n{self.INDENT}{fnames}"
 
 
 class MissingInputs(FaultyFilesException):
