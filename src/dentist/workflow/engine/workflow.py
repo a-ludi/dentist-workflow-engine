@@ -4,7 +4,9 @@ from .actions import AbstractAction
 from .resources import RootResources
 from .workdir import Workdir
 from enum import Enum
+from contextlib import contextmanager
 from hashlib import md5
+from itertools import chain
 from pathlib import Path
 from shutil import rmtree
 from sys import argv
@@ -36,6 +38,8 @@ def workflow(definition):
         check_delay=15,
         threads=1,
         force=False,
+        keep_temp=False,
+        delete_temp=False,
         workflow_dir=".workflow",
         resources=None,
         debug_flags=set(),
@@ -51,6 +55,8 @@ def workflow(definition):
             check_delay=check_delay,
             threads=threads,
             force=force,
+            keep_temp=keep_temp,
+            delete_temp=delete_temp,
             workflow_dir=workflow_dir,
             resources=resources,
             debug_flags=debug_flags,
@@ -72,6 +78,8 @@ class Workflow(object):
         # --- operation control flags ---
         dry_run=False,
         force=False,
+        keep_temp=False,
+        delete_temp=False,
         print_commands=False,
         # --- execution configuration ---
         threads=1,
@@ -111,6 +119,10 @@ class Workflow(object):
         self.dry_run = dry_run
         self.print_commands = print_commands
         self.force = force
+        self.keep_temp = keep_temp
+        self.delete_temp = delete_temp
+        if self.keep_temp and self.delete_temp:
+            raise ValueError("must not provide both `delete_temp` and `keep_temp`")
 
         # --- execution configuration ---
         self.threads = threads
@@ -134,6 +146,9 @@ class Workflow(object):
         # --- job handling ---
         self.job_queue = []
         self.jobs = dict()
+        self._collect_group = False
+        self._group_job_batches = []
+        self._group_job_name = None
 
     @staticmethod
     def make_executor(executor, *, submit_jobs, check_delay, root_workdir, debug_flags):
@@ -214,15 +229,18 @@ class Workflow(object):
         return action
 
     def __collect_job(self, job):
-        self._check_inputs(job.inputs)
-        if self.force or not self._is_up_to_date(job.inputs, job.outputs):
-            force_suffix = (
-                " (forced)" if self._is_up_to_date(job.inputs, job.outputs) else ""
-            )
-            log.debug(f"queued job {job.describe()}{force_suffix}")
+        if self._collect_group:
             self.job_queue.append(job)
         else:
-            log.debug(f"skipping job {job.describe()}: all outputs are up-to-date")
+            self._check_inputs(job.inputs)
+            if self.force or not self._is_up_to_date(job.inputs, job.outputs):
+                force_suffix = (
+                    " (forced)" if self._is_up_to_date(job.inputs, job.outputs) else ""
+                )
+                log.debug(f"queued job {job.describe()}{force_suffix}")
+                self.job_queue.append(job)
+            else:
+                log.debug(f"skipping job {job.describe()}: all outputs are up-to-date")
 
         if job.index is None:
             jobs_db = self.jobs
@@ -289,17 +307,25 @@ class Workflow(object):
 
         if len(self.job_queue) > 0:
             self.__execute_jobs()
-            if final:
-                log.info("all jobs done" + suffix)
-            else:
-                log.debug("flushed jobs" + suffix)
+            if not self._collect_group:
+                if final:
+                    log.info("all jobs done" + suffix)
+                else:
+                    log.debug("flushed jobs" + suffix)
         else:
-            if final:
-                log.info("nothing to be done" + suffix)
-            else:
-                log.debug("no jobs to be flushed" + suffix)
+            if not self._collect_group:
+                if final:
+                    log.info("nothing to be done" + suffix)
+                else:
+                    log.debug("no jobs to be flushed" + suffix)
 
     def __execute_jobs(self):
+        if self._collect_group:
+            if len(self.job_queue) > 0:
+                self._group_job_batches.append(self.job_queue)
+                self.job_queue = []
+            return
+
         try:
             self.executor(
                 self.job_queue,
@@ -320,6 +346,98 @@ class Workflow(object):
         except JobFailed as job_failure:
             self._discard_files(job_failure.job.outputs)
             raise job_failure
+
+    def __execute_group_job_batches(self):
+        assert self._collect_group
+        assert not self.force
+        num_jobs = sum(len(job_batch) for job_batch in self._group_job_batches)
+
+        if num_jobs == 0:
+            log.warning("nothing to execute in grouped_jobs")
+            return
+
+        group_inputs = chain.from_iterable(
+            job.inputs for job in self._group_job_batches[0]
+        )
+        group_outputs = chain.from_iterable(
+            job.outputs for job in self._group_job_batches[-1]
+        )
+        self._check_inputs(group_inputs)
+        if not self._is_up_to_date(group_inputs, group_outputs):
+            self._collect_group = False
+            for job_batch in self._group_job_batches:
+                self.job_queue = job_batch
+                self.execute_jobs()
+            self._collect_group = True
+        else:
+            log.debug(
+                f"skipping group job `{self._group_job_name}`: all outputs are up-to-date"
+            )
+            if not self.delete_temp:
+                # prevent modification of intermediate files
+                self._group_job_batches = []
+
+    def __clean_group_intermediates(self):
+        assert self._collect_group
+        assert not self.force
+
+        if len(self._group_job_batches) == 0:
+            return
+
+        group_inputs = list(
+            chain.from_iterable(job.inputs for job in self._group_job_batches[0])
+        )
+        group_outputs = list(
+            chain.from_iterable(job.outputs for job in self._group_job_batches[-1])
+        )
+        assert self._is_up_to_date(group_inputs, group_outputs)
+
+        all_files = chain(
+            chain.from_iterable(
+                job.inputs for job in chain.from_iterable(self._group_job_batches)
+            ),
+            chain.from_iterable(
+                job.outputs for job in chain.from_iterable(self._group_job_batches)
+            ),
+        )
+        all_files = set(str(file) for file in all_files)
+        interface_files = set(str(file) for file in chain(group_inputs, group_outputs))
+        intermediate_files = [
+            Path(intermediate_file) for intermediate_file in all_files - interface_files
+        ]
+        log.debug(f"interface_files=[{', '.join(interface_files)}]")
+        log.debug(f"intermediate_files=[{', '.join(all_files - interface_files)}]")
+
+        for intermediate_file in intermediate_files:
+            if self.keep_temp:
+                log.info(f"keeping temporary intermediate file `{intermediate_file}`")
+            elif intermediate_file.exists():
+                log.info(f"removing temporary intermediate file `{intermediate_file}`")
+                intermediate_file.unlink()
+            else:
+                log.debug(
+                    f"no need to delete temporary intermediate file `{intermediate_file}`"
+                )
+
+    @contextmanager
+    def grouped_jobs(self, group_name, temp_intermediates=False):
+        if self.force:
+            # execute everything as normal if force
+            yield
+        else:
+            self._collect_group = True
+            self._group_job_batches = []
+            self._group_job_name = group_name
+            try:
+                yield
+                self.execute_jobs(final=True)
+                self.__execute_group_job_batches()
+                if temp_intermediates:
+                    self.__clean_group_intermediates()
+            finally:
+                self._group_job_name = None
+                self._group_job_batches = []
+                self._collect_group = False
 
 
 class JobState(Enum):
