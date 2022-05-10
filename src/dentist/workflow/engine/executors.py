@@ -134,7 +134,7 @@ class LocalExecutor(AbstractExecutor):
             job.done()
             report_job(job)
         except subprocess.CalledProcessError as reason:
-            job.failed()
+            job.failed(reason.returncode)
             report_job(job)
             if return_error:
                 return JobFailed(job, reason)
