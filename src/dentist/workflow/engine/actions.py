@@ -83,18 +83,22 @@ class ShellCommand(object):
 
     def append(self, part):
         self.parts.append(shell_escape(str(part)))
+        return self
 
     def __add__(self, part):
-        self.append(part)
+        return self.append(part)
 
     def stdin(self, file_path):
         self._stdin = self.__get_path(file_path)
+        return self
 
     def stdout(self, file_path):
         self._stdout = self.__get_path(file_path)
+        return self
 
     def stderr(self, file_path):
         self._stderr = self.__get_path(file_path)
+        return self
 
     def __get_path(self, file_path):
         if file_path is None:
@@ -122,10 +126,11 @@ class ShellCommand(object):
             for new_part in new_parts:
                 assert not isinstance(new_part, ShellCommand)
                 self.append(new_part)
+        return self
 
     def __or__(self, command):
         assert isinstance(command, ShellCommand)
-        self.pipe(command)
+        return self.pipe(command)
 
     def __str__(self):
         all_parts = [
