@@ -103,12 +103,25 @@ class ShellCommand(object):
             return Path(file_path)
 
     def pipe(self, *new_parts):
-        if len(new_parts) == 0 and isinstance(new_parts[0], ShellCommand):
-            new_parts = new_parts[0].parts
+        if len(new_parts) == 1 and isinstance(new_parts[0], ShellCommand):
+            cmd = new_parts[0]
 
-        self.parts.append("|")
-        for new_part in new_parts:
-            self.append(new_part)
+            # handle redirections
+            if self._stderr is not None:
+                self.parts.append(self.__redirect_op["stderr"])
+                self.parts.append(shell_escape(str(self._stderr)))
+            assert cmd._stdin is None
+            self._stderr = cmd._stderr
+            self._stdout = cmd._stdout
+
+            # append pipe command
+            self.parts.append("|")
+            self.parts.extend(cmd.parts)
+        else:
+            self.parts.append("|")
+            for new_part in new_parts:
+                assert not isinstance(new_part, ShellCommand)
+                self.append(new_part)
 
     def __or__(self, command):
         assert isinstance(command, ShellCommand)
