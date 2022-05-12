@@ -1,6 +1,7 @@
 from itertools import groupby
 from subprocess import run, PIPE, Popen
 import logging
+import os
 
 
 default_params = {
@@ -41,7 +42,7 @@ def submit_jobs(jobs, workdir, debug_flags):
     job_ids = list()
     debug = "slurm" in debug_flags
     for job_batch in job_batches:
-        script_name = workdir.acquire_file(f"{job_batch[0].name}.sh")
+        script_name = workdir.acquire_file(f"{job_batch[0].describe()}.sh")
         if len(job_batch) == 1 and not job_batch[0].is_batch:
             job_ids.append(_submit_solitary_job(job_batch[0], script_name, debug=debug))
         else:
@@ -72,7 +73,7 @@ def _submit_batch_job(jobs, script_name, debug=False):
     commands = [
         __batch_job_command_template.format(
             id=job.index,
-            command=str(job).removeprefix(__default_shell_command),
+            command=str(job),
         )
         for job in jobs
     ]
@@ -96,7 +97,16 @@ def _submit_script(script, params, debug=False):
     log.debug(f"submitting using {' '.join(command)}")
 
     if debug:
-        Popen(["/bin/bash", script])
+        array_params = [arg for arg in params if arg.startswith("--array=")]
+
+        if len(array_params) == 0:
+            Popen(["/bin/bash", script])
+        else:
+            array_ids = array_params[0].removeprefix("--array=").split(",")
+            env = dict(os.environ)
+            for array_id in array_ids:
+                env["SLURM_ARRAY_TASK_ID"] = str(array_id)
+                Popen(["/bin/bash", script], env=env.copy())
 
         return "DEBUG"
     else:

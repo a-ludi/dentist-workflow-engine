@@ -13,6 +13,7 @@ def example_workflow(*, count, outdir):
     for i in range(count):
         workflow.collect_job(
             name="generate",
+            index=i,
             inputs=[],
             outputs=[outdir / f"file_{i}"],
             action=lambda: ShellScript(
@@ -24,7 +25,9 @@ def example_workflow(*, count, outdir):
 
     workflow.collect_job(
         name="concat_results",
-        inputs=chain.from_iterable(job.outputs for job in workflow.jobs["generate"]),
+        inputs=chain.from_iterable(
+            job.outputs for job in workflow.jobs["generate"].values()
+        ),
         outputs=[outdir / "combined.out"],
         action=lambda: ShellScript(ShellCommand(["cat", *inputs], stdout=outputs[0])),
     )
@@ -44,7 +47,7 @@ def main():
         submit_jobs="slurm",
         check_delay=1,
         resources="resources.yaml",
-        # debug_flags={"slurm"},
+        debug_flags={"slurm"},
     )
 
 
