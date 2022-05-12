@@ -218,7 +218,7 @@ class Workflow(object):
         return [Path(file) for file in file_list]
 
     def __prepare_action(self, action, params):
-        if callable(action):
+        if callable(action) and not isinstance(action, AbstractAction):
             action.__globals__.update(params)
             action = action()
         else:
@@ -472,6 +472,8 @@ class Job(AbstractAction):
             raise ValueError("Job index must be None or integer.")
         self.inputs = inputs
         self.outputs = outputs
+        if not isinstance(action, AbstractAction):
+            raise ValueError("Job action must be derived from AbstractAction.")
         self.action = action
         self.resources = resources
         self.ncpus = self.resources.get("ncpus", 1)
@@ -501,6 +503,9 @@ class Job(AbstractAction):
 
     def to_command(self):
         return self.action.to_command()
+
+    def __str__(self):
+        return str(self.action)
 
     def describe(self):
         if self.id is None:

@@ -1,9 +1,7 @@
 from abc import ABC, abstractmethod
+from inspect import signature
 from pathlib import Path
 from shlex import quote as shell_escape
-
-
-__all__ = ["ShellScript", "ShellCommand"]
 
 
 class AbstractAction(ABC):
@@ -157,3 +155,35 @@ class ShellCommand(object):
             esc_file = shell_escape(str(file_path))
             op = self.__redirect_op[what]
             return f"{op} {esc_file}"
+
+
+class PythonCode(AbstractAction):
+    def __init__(self, function, name=None):
+        super().__init__()
+        if not callable(function):
+            raise ValueError("function must be callable")
+        if len(signature(function).parameters) > 0:
+            raise ValueError("function must not take any arguments")
+        self.function = function
+        if name is None:
+            self.name = self.function.__name__
+        else:
+            self.name = name
+
+    def __call__(self):
+        self.function()
+
+    def to_command(self):
+        raise NotImplementedError("PythonCode can only be executed locally")
+
+    def __str__(self):
+        return f"{self.name}()"
+
+
+def python_code(function):
+    def make_python_code_action():
+        # propagate inputs, outputs, etc. to inner function
+        function.__globals__.update(globals())
+        return PythonCode(function)
+
+    return make_python_code_action

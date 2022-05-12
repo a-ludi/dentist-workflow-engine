@@ -129,17 +129,31 @@ class LocalExecutor(AbstractExecutor):
     def _execute_job(job, *, print_commands, return_error=False):
         if print_commands:
             print(job)
-        try:
-            subprocess.run(job.to_command(), check=True)
-            job.done()
-            report_job(job)
-        except subprocess.CalledProcessError as reason:
-            job.failed(reason.returncode)
-            report_job(job)
-            if return_error:
-                return JobFailed(job, reason)
-            else:
-                raise JobFailed(job, reason)
+
+        if callable(job.action):
+            try:
+                job.action()
+                job.done()
+                report_job(job)
+            except Exception as reason:
+                job.failed(1)
+                report_job(job)
+                if return_error:
+                    return JobFailed(job, reason)
+                else:
+                    raise JobFailed(job, reason)
+        else:
+            try:
+                subprocess.run(job.to_command(), check=True)
+                job.done()
+                report_job(job)
+            except subprocess.CalledProcessError as reason:
+                job.failed(reason.returncode)
+                report_job(job)
+                if return_error:
+                    return JobFailed(job, reason)
+                else:
+                    raise JobFailed(job, reason)
 
 
 class DetachedExecutor(AbstractExecutor):
