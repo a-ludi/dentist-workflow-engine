@@ -1,5 +1,5 @@
 from . import executors
-from .executors import AbstractExecutor, JobFailed
+from .executors import AbstractExecutor, LocalExecutor, JobFailed
 from .actions import AbstractAction
 from .resources import RootResources
 from .workdir import Workdir
@@ -34,6 +34,7 @@ def workflow(definition):
         dry_run=False,
         print_commands=False,
         executor=None,
+        local_executor=None,
         submit_jobs=None,
         check_delay=15,
         threads=1,
@@ -51,6 +52,7 @@ def workflow(definition):
             dry_run=dry_run,
             print_commands=print_commands,
             executor=executor,
+            local_executor=local_executor,
             submit_jobs=submit_jobs,
             check_delay=check_delay,
             threads=threads,
@@ -85,6 +87,7 @@ class Workflow(object):
         threads=1,
         resources=None,
         executor=None,
+        local_executor=LocalExecutor,
         submit_jobs=None,
         check_delay=15,
         # --- debug flags ---
@@ -130,15 +133,24 @@ class Workflow(object):
             self.resources = RootResources()
         else:
             self.resources = RootResources.read(workflow_root / resources)
+        job_scripts_dir = self.workdir.acquire_dir("job-scripts", force_empty=True)
         self.executor = self.make_executor(
             executor,
             submit_jobs=submit_jobs,
             check_delay=check_delay,
-            root_workdir=self.workdir,
+            job_scripts_dir=job_scripts_dir,
             debug_flags=self.debug_flags,
         )
         self.status_tracking = self.executor.requires_status_tracking
-        if self.status_tracking:
+        self.local_executor = self.make_executor(
+            local_executor,
+            submit_jobs=None,
+            check_delay=check_delay,
+            job_scripts_dir=job_scripts_dir,
+            debug_flags=self.debug_flags,
+        )
+        self.local_status_tracking = self.local_executor.requires_status_tracking
+        if self.status_tracking or self.local_status_tracking:
             self.status_tracking_dir = self.workdir.acquire_dir(
                 "status", force_empty=True
             )
@@ -151,14 +163,16 @@ class Workflow(object):
         self._group_job_name = None
 
     @staticmethod
-    def make_executor(executor, *, submit_jobs, check_delay, root_workdir, debug_flags):
+    def make_executor(
+        executor, *, submit_jobs, check_delay, job_scripts_dir, debug_flags
+    ):
         if isinstance(submit_jobs, str):
             submitter = import_module(f"..interfaces.{submit_jobs}", _package_name)
             submit_jobs = submitter.submit_jobs
 
         if executor is None:
             optargs = {
-                "workdir": root_workdir.acquire_dir("job-scripts", force_empty=True),
+                "workdir": job_scripts_dir,
                 "debug_flags": debug_flags,
             }
             if submit_jobs is None:
@@ -194,13 +208,17 @@ class Workflow(object):
         self.definition.__globals__["workflow"] = self
         self.definition(*args, **kwargs)
 
-    def collect_job(self, *, name, index=None, inputs, outputs, action):
+    def collect_job(
+        self, *, name, index=None, exec_local=False, inputs, outputs, action
+    ):
         params = self.__preprare_params(locals().copy())
         params["resources"] = self.resources[name]
         action = self.__prepare_action(action, params)
         job = self.__collect_job(Job(action=action, **params))
 
-        if self.status_tracking:
+        if (not exec_local and self.status_tracking) or (
+            exec_local and self.local_status_tracking
+        ):
             job.enable_tracking(self.status_tracking_dir.acquire_file(job.hash))
 
         return job
@@ -326,26 +344,37 @@ class Workflow(object):
                 self.job_queue = []
             return
 
+        local_jobs = [job for job in self.job_queue if job.exec_local]
+        normal_jobs = [job for job in self.job_queue if not job.exec_local]
+
         try:
-            self.executor(
-                self.job_queue,
-                dry_run=self.dry_run,
-                print_commands=self.print_commands,
-                threads=self.threads,
-            )
-
-            incomplete_outputs = []
-            for job in self.job_queue:
-                assert job.state.is_done
-                incomplete_outputs.extend(self._check_outputs(job.inputs, job.outputs))
-            if len(incomplete_outputs) > 0:
-                raise IncompleteOutputs(incomplete_outputs)
-
-            # reset job queue
-            self.job_queue = []
+            if len(normal_jobs) > 0:
+                self.executor(
+                    normal_jobs,
+                    dry_run=self.dry_run,
+                    print_commands=self.print_commands,
+                    threads=self.threads,
+                )
+            if len(local_jobs) > 0:
+                self.local_executor(
+                    local_jobs,
+                    dry_run=self.dry_run,
+                    print_commands=self.print_commands,
+                    threads=self.threads,
+                )
         except JobFailed as job_failure:
             self._discard_files(job_failure.job.outputs)
             raise job_failure
+
+        incomplete_outputs = []
+        for job in self.job_queue:
+            assert job.state.is_done
+            incomplete_outputs.extend(self._check_outputs(job.inputs, job.outputs))
+        if len(incomplete_outputs) > 0:
+            raise IncompleteOutputs(incomplete_outputs)
+
+        # reset job queue
+        self.job_queue = []
 
     def __execute_group_job_batches(self):
         assert self._collect_group
@@ -463,13 +492,18 @@ class JobState(Enum):
 
 
 class Job(AbstractAction):
-    def __init__(self, *, name, index=None, inputs, outputs, action, resources):
+    def __init__(
+        self, *, name, index=None, exec_local=False, inputs, outputs, action, resources
+    ):
         self.name = name
         if not self.name.isidentifier():
             raise ValueError("Job names must be valid Python identifiers.")
         self.index = index
         if self.index is not None and not isinstance(self.index, int):
             raise ValueError("Job index must be None or integer.")
+        self.exec_local = exec_local
+        if action.local_only and not self.exec_local:
+            raise ValueError("Must set `exec_local=True` for local-only action")
         self.inputs = inputs
         self.outputs = outputs
         if not isinstance(action, AbstractAction):

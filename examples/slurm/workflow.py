@@ -29,6 +29,7 @@ def example_workflow(*, count, outdir):
             job.outputs for job in workflow.jobs["generate"].values()
         ),
         outputs=[outdir / "combined.out"],
+        exec_local=True,
         action=lambda: ShellScript(ShellCommand(["cat", *inputs], stdout=outputs[0])),
     )
 

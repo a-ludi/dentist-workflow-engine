@@ -5,6 +5,8 @@ from shlex import quote as shell_escape
 
 
 class AbstractAction(ABC):
+    local_only = False
+
     def __init__(self):
         self.tracking_status_path = None
 
@@ -158,6 +160,8 @@ class ShellCommand(object):
 
 
 class PythonCode(AbstractAction):
+    local_only = True
+
     def __init__(self, function, name=None):
         super().__init__()
         if not callable(function):

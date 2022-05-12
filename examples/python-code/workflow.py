@@ -18,6 +18,7 @@ class ExampleWorkflow(Workflow):
             name="create_outdir",
             inputs=[],
             outputs=[self.outdir],
+            exec_local=True,
             action=self.create_outdirs,
         )
         self.execute_jobs()
@@ -46,6 +47,7 @@ class ExampleWorkflow(Workflow):
                 *self.jobs["transform_bar"].outputs,
             ],
             outputs=[self.outdir / "result.out"],
+            exec_local=True,
             action=self.concat_files,
         )
 
