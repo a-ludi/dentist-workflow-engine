@@ -44,12 +44,27 @@ def main():
 
     logging.basicConfig(level=logging.DEBUG)
     script_root = Path(sys.argv[0]).parent
-    example_workflow(
-        indir=script_root / "inputs",
-        outdir=script_root / "results",
-        dry_run=False,
-        print_commands=True,
+    indir = script_root / "inputs"
+    outdir = script_root / "results"
+    parser = cli_parser()
+    parser.add_argument(
+        "--indir",
+        metavar="<dir>",
+        type=Path,
+        default=script_root / "inputs",
+        help="directory with input files; defaults to `./inputs` relative to "
+        "the workflow file",
     )
+    parser.add_argument(
+        "--outdir",
+        metavar="<dir>",
+        type=Path,
+        default=script_root / "results",
+        help="directory where output files are written; defaults to "
+        "`./results` relative to the workflow file",
+    )
+    params = vars(parser.parse_args())
+    example_workflow(**params)
 
 
 if __name__ == "__main__":
