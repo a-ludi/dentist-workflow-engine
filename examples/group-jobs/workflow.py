@@ -1,5 +1,6 @@
-from dentist import *
 from pathlib import Path
+
+from dentist import ShellCommand, ShellScript, Workflow
 
 
 class ExampleWorkflow(Workflow):

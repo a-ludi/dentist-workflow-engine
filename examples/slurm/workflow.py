@@ -1,7 +1,7 @@
-from dentist import *
-from dentist.workflow.engine.workflow import Job
 from itertools import chain
 from pathlib import Path
+
+from dentist import ShellCommand, ShellScript, workflow
 
 
 @workflow

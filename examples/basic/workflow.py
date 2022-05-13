@@ -1,5 +1,6 @@
-from dentist import *
 from pathlib import Path
+
+from dentist import ShellCommand, ShellScript, cli_parser, workflow
 
 
 @workflow
@@ -44,8 +45,6 @@ def main():
 
     logging.basicConfig(level=logging.DEBUG)
     script_root = Path(sys.argv[0]).parent
-    indir = script_root / "inputs"
-    outdir = script_root / "results"
     parser = cli_parser()
     parser.add_argument(
         "--indir",

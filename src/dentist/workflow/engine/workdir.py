@@ -1,7 +1,6 @@
+import logging
 from pathlib import Path
 from shutil import rmtree
-import logging
-
 
 __all__ = ["Workdir"]
 
@@ -57,7 +56,7 @@ class Workdir(object):
 
         if not exist_ok and full_path.exists():
             raise Exception(
-                f"Working file already exists: {reason}\n"
+                f"Working file unexpectedly exists.\n"
                 "\n"
                 f"Please delete it manually: {full_path}"
             )

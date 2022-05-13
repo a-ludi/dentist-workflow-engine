@@ -1,6 +1,7 @@
-from dentist import *
 from itertools import chain
 from pathlib import Path
+
+from dentist import ShellCommand, ShellScript, workflow
 
 
 @workflow
@@ -10,7 +11,7 @@ def example_workflow(*, count, outdir):
     outdir.mkdir(parents=True, exist_ok=True)
 
     for i in range(count):
-        job = workflow.collect_job(
+        workflow.collect_job(
             name="generate",
             index=i,
             inputs=[],

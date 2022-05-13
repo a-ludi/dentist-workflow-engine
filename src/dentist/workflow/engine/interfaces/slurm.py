@@ -1,8 +1,7 @@
-from itertools import groupby
-from subprocess import run, PIPE, Popen
 import logging
 import os
-
+from itertools import groupby
+from subprocess import PIPE, Popen, run
 
 default_params = {
     "time": "01:00:00",

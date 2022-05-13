@@ -1,9 +1,9 @@
+import logging
+import subprocess
 from abc import ABC, abstractmethod
 from inspect import signature
 from itertools import chain
 from time import sleep
-import logging
-import subprocess
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class AbstractExecutor(ABC):
 
     @abstractmethod
     def _run_jobs(self, jobs, *, print_commands, threads):
-        raise NotImplemented("Define exeuction method.")
+        raise NotImplementedError("Define exeuction method.")
 
 
 class JobFailure(Exception):

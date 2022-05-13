@@ -1,18 +1,17 @@
-from . import executors
-from .executors import AbstractExecutor, LocalExecutor, JobFailed
-from .actions import AbstractAction
-from .resources import RootResources
-from .workdir import Workdir
-from enum import Enum
+import logging
 from contextlib import contextmanager
+from enum import Enum
 from hashlib import md5
+from importlib import import_module
 from itertools import chain
 from pathlib import Path
-from shutil import rmtree
 from sys import argv
-from importlib import import_module
-import logging
 
+from . import executors
+from .actions import AbstractAction
+from .executors import AbstractExecutor, JobFailed, LocalExecutor
+from .resources import RootResources
+from .workdir import Workdir
 
 __all__ = [
     "DuplicateJob",
@@ -400,7 +399,8 @@ class Workflow(object):
             self._collect_group = True
         else:
             log.debug(
-                f"skipping group job `{self._group_job_name}`: all outputs are up-to-date"
+                f"skipping group job `{self._group_job_name}`: "
+                "all outputs are up-to-date"
             )
             if not self.delete_temp:
                 # prevent modification of intermediate files
@@ -445,7 +445,8 @@ class Workflow(object):
                 intermediate_file.unlink()
             else:
                 log.debug(
-                    f"no need to delete temporary intermediate file `{intermediate_file}`"
+                    "no need to delete temporary intermediate "
+                    f"file `{intermediate_file}`"
                 )
 
     @contextmanager

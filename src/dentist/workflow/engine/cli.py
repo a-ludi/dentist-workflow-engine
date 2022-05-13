@@ -1,12 +1,13 @@
-from . import interfaces
-from .workflow import Workflow
-from argparse import ArgumentParser, FileType, Action, ArgumentDefaultsHelpFormatter
+import argparse
+import sys
 from inspect import signature
 from pathlib import Path
-import sys
+
+from . import interfaces
+from .workflow import Workflow
 
 
-class CollectSet(Action):
+class CollectSet(argparse.Action):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -72,13 +73,13 @@ def cli_parser(script_root=None):
     if script_root is None:
         script_root = Path(sys.argv[0]).parent
 
-    parser = ArgumentParser(
+    parser = argparse.ArgumentParser(
         add_help=True,
         epilog="""
             Powered by the DENTIST workflow engine.
             Copyright © 2022 Arne Ludwig <arne.ludwig@posteo.de>
         """,
-        formatter_class=ArgumentDefaultsHelpFormatter,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     workflow_params = dict(signature(Workflow.__init__).parameters)
     for param in _skip_cli:
