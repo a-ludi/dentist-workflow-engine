@@ -58,7 +58,7 @@ class ExampleWorkflow(Workflow):
                 *self.jobs["transform_bar"].outputs,
             ],
             outputs=[self.outdir / "result.out"],
-            action=lambda: ShellScript(
+            action=lambda inputs, outputs: ShellScript(
                 ShellCommand(["cat", *inputs], stdout=outputs[0])
             ),
         )
@@ -69,7 +69,7 @@ class ExampleWorkflow(Workflow):
             name="finalize_output",
             inputs=self.jobs["combine_results"].outputs,
             outputs=[self.outdir / "final-result.out"],
-            action=lambda: ShellScript(
+            action=lambda inputs, outputs: ShellScript(
                 ShellCommand(["echo", "final-output"])
                 | ShellCommand(["cat", "-", *inputs], stdout=outputs[0])
             ),
@@ -77,11 +77,11 @@ class ExampleWorkflow(Workflow):
         self.execute_jobs()
 
     @staticmethod
-    def create_file():
+    def create_file(outputs):
         return ShellScript(ShellCommand(["echo", outputs[0]], stdout=outputs[0]))
 
     @staticmethod
-    def to_upper_case():
+    def to_upper_case(inputs, outputs):
         return ShellScript(
             ShellCommand(["tr", "a-z", "A-Z"], stdin=inputs[0], stdout=outputs[0])
         )

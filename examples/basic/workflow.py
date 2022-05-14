@@ -4,8 +4,8 @@ from dentist import ShellCommand, ShellScript, cli_parser, workflow
 
 
 @workflow
-def example_workflow(*, indir, outdir):
-    def to_upper_case():
+def example_workflow(workflow, *, indir, outdir):
+    def to_upper_case(inputs, outputs):
         return ShellScript(
             ShellCommand(["tr", "a-z", "A-Z"], stdin=inputs[0], stdout=outputs[0])
         )
@@ -35,7 +35,9 @@ def example_workflow(*, indir, outdir):
             *workflow.jobs["transform_bar"].outputs,
         ],
         outputs=[outdir / "result.out"],
-        action=lambda: ShellScript(ShellCommand(["cat", *inputs], stdout=outputs[0])),
+        action=lambda inputs, outputs: ShellScript(
+            ShellCommand(["cat", *inputs], stdout=outputs[0])
+        ),
     )
 
 

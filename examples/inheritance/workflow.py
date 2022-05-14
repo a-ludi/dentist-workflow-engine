@@ -41,13 +41,13 @@ class ExampleWorkflow(Workflow):
                 *self.jobs["transform_bar"].outputs,
             ],
             outputs=[self.outdir / "result.out"],
-            action=lambda: ShellScript(
+            action=lambda inputs, outputs: ShellScript(
                 ShellCommand(["cat", *inputs], stdout=outputs[0])
             ),
         )
 
     @staticmethod
-    def to_upper_case():
+    def to_upper_case(inputs, outputs):
         return ShellScript(
             ShellCommand(["tr", "a-z", "A-Z"], stdin=inputs[0], stdout=outputs[0])
         )

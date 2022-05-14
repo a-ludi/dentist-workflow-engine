@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from inspect import signature
 from pathlib import Path
 from shlex import quote as shell_escape
+
+from .util import inject
 
 
 class AbstractAction(ABC):
@@ -166,8 +167,6 @@ class PythonCode(AbstractAction):
         super().__init__()
         if not callable(function):
             raise ValueError("function must be callable")
-        if len(signature(function).parameters) > 0:
-            raise ValueError("function must not take any arguments")
         self.function = function
         if name is None:
             self.name = self.function.__name__
@@ -185,9 +184,8 @@ class PythonCode(AbstractAction):
 
 
 def python_code(function):
-    def make_python_code_action():
+    def make_python_code_action(**vars):
         # propagate inputs, outputs, etc. to inner function
-        function.__globals__.update(globals())
-        return PythonCode(function)
+        return PythonCode(inject(function, **vars))
 
     return make_python_code_action

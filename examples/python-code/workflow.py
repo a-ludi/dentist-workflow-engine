@@ -54,19 +54,19 @@ class ExampleWorkflow(Workflow):
 
     @staticmethod
     @python_code
-    def create_outdirs():
+    def create_outdirs(outputs):
         for outdir in outputs:
             outdir.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
-    def to_upper_case():
+    def to_upper_case(inputs, outputs):
         return ShellScript(
             ShellCommand(["tr", "a-z", "A-Z"], stdin=inputs[0], stdout=outputs[0])
         )
 
     @staticmethod
     @python_code
-    def concat_files():
+    def concat_files(inputs, outputs):
         with open(outputs[0], "w") as out:
             for input in inputs:
                 with open(input) as infile:

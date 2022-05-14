@@ -11,6 +11,7 @@ from . import executors
 from .actions import AbstractAction
 from .executors import AbstractExecutor, JobFailed, LocalExecutor
 from .resources import RootResources
+from .util import inject
 from .workdir import Workdir
 
 __all__ = [
@@ -204,8 +205,7 @@ class Workflow(object):
             else:
                 raise NotImplementedError("`self.run()` not implemented")
 
-        self.definition.__globals__["workflow"] = self
-        self.definition(*args, **kwargs)
+        self.definition(self, *args, **kwargs)
 
     def collect_job(
         self, *, name, index=None, exec_local=False, inputs, outputs, action
@@ -236,8 +236,7 @@ class Workflow(object):
 
     def __prepare_action(self, action, params):
         if callable(action) and not isinstance(action, AbstractAction):
-            action.__globals__.update(params)
-            action = action()
+            action = inject(action, **params)()
         else:
             action = action
 

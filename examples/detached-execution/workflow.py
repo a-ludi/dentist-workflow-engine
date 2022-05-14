@@ -4,7 +4,7 @@ from dentist import ShellCommand, ShellScript, workflow
 
 
 @workflow
-def example_workflow(*, count, outdir):
+def example_workflow(workflow, *, count, outdir):
 
     # make sure outdir exists
     outdir.mkdir(parents=True, exist_ok=True)
@@ -15,7 +15,7 @@ def example_workflow(*, count, outdir):
             name=f"generate_{i}",
             inputs=[],
             outputs=[outdir / f"file_{i}"],
-            action=lambda: ShellScript(
+            action=lambda inputs, outputs: ShellScript(
                 ShellCommand(["sleep", "0.1"]),
                 ShellCommand(["echo", f"data-{i:05d}"], stdout=outputs[0]),
             ),
@@ -28,7 +28,9 @@ def example_workflow(*, count, outdir):
         name="concat_results",
         inputs=generated_files,
         outputs=[outdir / "combined.out"],
-        action=lambda: ShellScript(ShellCommand(["cat", *inputs], stdout=outputs[0])),
+        action=lambda inputs, outputs: ShellScript(
+            ShellCommand(["cat", *inputs], stdout=outputs[0])
+        ),
     )
 
 
