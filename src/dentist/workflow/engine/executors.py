@@ -127,6 +127,12 @@ class LocalExecutor(AbstractExecutor):
 
     @staticmethod
     def _execute_job(job, *, print_commands, return_error=False):
+        if job.resources["ncpus"] > 1:
+            log.warning(
+                "unsupported operation for local execution: "
+                f"job `{job.describe()}` requested {job.resources['ncpus']} CPUs."
+            )
+
         if print_commands:
             print(job)
 
