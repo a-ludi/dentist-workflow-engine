@@ -55,7 +55,7 @@ def main():
         dry_run=False,
         print_commands=True,
         submit_jobs=submit_jobs,
-        check_delay=5,
+        check_delay=1,
     )
 
 

@@ -69,7 +69,7 @@ _help = {
 }
 
 
-def cli_parser(script_root=None):
+def cli_parser(script_root=None, **override_defaults):
     if script_root is None:
         script_root = Path(sys.argv[0]).parent
 
@@ -84,9 +84,9 @@ def cli_parser(script_root=None):
     workflow_params = dict(signature(Workflow.__init__).parameters)
     for param in _skip_cli:
         del workflow_params[param]
-    override_defaults = {
-        "workflow_root": script_root,
-    }
+
+    if "workflow_root" not in override_defaults:
+        override_defaults["workflow_root"] = script_root
 
     for param in workflow_params.values():
         long_opt = "--" + param.name.replace("_", "-")
