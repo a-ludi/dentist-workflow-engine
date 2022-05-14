@@ -42,16 +42,20 @@ class ExampleWorkflow(Workflow):
         self.execute_jobs()
 
     def combine_phase(self):
-        self.collect_job(
-            name="combine_results",
+        @self.collect_job(
             inputs=[
                 *self.jobs["transform_foo"].outputs,
                 *self.jobs["transform_bar"].outputs,
             ],
             outputs=[self.outdir / "result.out"],
             exec_local=True,
-            action=self.concat_files,
         )
+        @python_code
+        def combine_results(inputs, outputs):
+            with open(outputs[0], "w") as out:
+                for input in inputs:
+                    with open(input) as infile:
+                        out.write(infile.read())
 
     def check_output(self):
         self.execute_jobs()
@@ -69,14 +73,6 @@ class ExampleWorkflow(Workflow):
         return ShellScript(
             ShellCommand(["tr", "a-z", "A-Z"], stdin=inputs[0], stdout=outputs[0])
         )
-
-    @staticmethod
-    @python_code
-    def concat_files(inputs, outputs):
-        with open(outputs[0], "w") as out:
-            for input in inputs:
-                with open(input) as infile:
-                    out.write(infile.read())
 
 
 def main():

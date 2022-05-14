@@ -188,4 +188,6 @@ def python_code(function):
         # propagate inputs, outputs, etc. to inner function
         return PythonCode(inject(function, **vars))
 
+    make_python_code_action.__name__ = function.__name__
+
     return make_python_code_action

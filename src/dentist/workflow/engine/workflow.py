@@ -208,8 +208,26 @@ class Workflow(object):
         self.definition(self, *args, **kwargs)
 
     def collect_job(
-        self, *, name, index=None, exec_local=False, inputs, outputs, action
+        self, *, name=None, index=None, exec_local=False, inputs, outputs, action=None
     ):
+        if name is None and action is None:
+            # act as function decorator
+            def collector(action):
+                return self.collect_job(
+                    action=action,
+                    name=action.__name__,
+                    index=index,
+                    exec_local=exec_local,
+                    inputs=inputs,
+                    outputs=outputs,
+                )
+
+            return collector
+        elif name is None:
+            raise ValueError("job is missing `name`")
+        elif action is None:
+            raise ValueError("job is missing `action`")
+
         params = self.__preprare_params(locals().copy())
         params["resources"] = self.resources[name]
         action = self.__prepare_action(action, params)
