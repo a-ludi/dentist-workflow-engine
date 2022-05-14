@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from dentist import ShellCommand, ShellScript, workflow
+from dentist import ShellScript, safe, workflow
 
 
 @workflow
@@ -16,8 +16,8 @@ def example_workflow(workflow, *, count, outdir):
             inputs=[],
             outputs=[outdir / f"file_{i}"],
             action=lambda inputs, outputs: ShellScript(
-                ShellCommand(["sleep", "0.1"]),
-                ShellCommand(["echo", f"data-{i:05d}"], stdout=outputs[0]),
+                ("sleep", "0.1"),
+                ("echo", f"data-{i:05d}", safe(">"), outputs[0]),
             ),
         )
         generated_files.extend(job.outputs)
@@ -29,7 +29,7 @@ def example_workflow(workflow, *, count, outdir):
         inputs=generated_files,
         outputs=[outdir / "combined.out"],
         action=lambda inputs, outputs: ShellScript(
-            ShellCommand(["cat", *inputs], stdout=outputs[0])
+            ("cat", *inputs, safe(">"), outputs[0])
         ),
     )
 

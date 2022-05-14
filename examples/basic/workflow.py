@@ -1,13 +1,13 @@
 from pathlib import Path
 
-from dentist import ShellCommand, ShellScript, cli_parser, workflow
+from dentist import ShellScript, cli_parser, safe, workflow
 
 
 @workflow
 def example_workflow(workflow, *, indir, outdir):
     def to_upper_case(inputs, outputs):
         return ShellScript(
-            ShellCommand(["tr", "a-z", "A-Z"], stdin=inputs[0], stdout=outputs[0])
+            ("tr", "a-z", "A-Z", safe("<"), inputs[0], safe(">"), outputs[0])
         )
 
     # make sure outdir exists
@@ -36,7 +36,7 @@ def example_workflow(workflow, *, indir, outdir):
         ],
         outputs=[outdir / "result.out"],
         action=lambda inputs, outputs: ShellScript(
-            ShellCommand(["cat", *inputs], stdout=outputs[0])
+            ("cat", *inputs, safe(">"), outputs[0])
         ),
     )
 

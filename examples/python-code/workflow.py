@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from dentist import ShellCommand, ShellScript, Workflow, python_code
+from dentist import ShellScript, Workflow, python_code, safe
 
 
 class ExampleWorkflow(Workflow):
@@ -71,7 +71,7 @@ class ExampleWorkflow(Workflow):
     @staticmethod
     def to_upper_case(inputs, outputs):
         return ShellScript(
-            ShellCommand(["tr", "a-z", "A-Z"], stdin=inputs[0], stdout=outputs[0])
+            ("tr", "a-z", "A-Z", safe("<"), inputs[0], safe(">"), outputs[0])
         )
 
 

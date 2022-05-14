@@ -46,23 +46,26 @@ class AbstractAction(ABC):
         return " ".join(shell_escape(part) for part in self.to_command())
 
 
+class safe(str):
+    """Mark a string as safe, i.e. it will not be escaped."""
+
+    pass
+
+
 class ShellScript(AbstractAction):
     def __init__(
-        self, *commands, shell=["/bin/bash", "-c"], safe_mode="set -euo pipefail"
+        self, *lines, shell=["/bin/bash", "-c"], safe_mode="set -euo pipefail"
     ):
         super().__init__()
-        for command in commands:
-            assert isinstance(command, ShellCommand)
-        self.commands = commands
+        self.lines = lines
         self.shell = shell
         self.safe_mode = safe_mode
 
-    def append(self, command):
-        assert isinstance(command, ShellCommand)
-        self.commands.append(command)
+    def append(self, *lines):
+        self.lines.extend(lines)
 
     def to_command(self):
-        script = "; ".join(str(command) for command in self.commands)
+        script = ShellScript._make_script(self.lines)
         if self.safe_mode is not None:
             script = f"{self.safe_mode}; {script}"
 
@@ -74,90 +77,23 @@ class ShellScript(AbstractAction):
 
         return [*self.shell, script]
 
+    @staticmethod
+    def _make_script(lines):
+        return "\n".join(ShellScript._make_line(line) for line in lines)
 
-class ShellCommand(object):
-    def __init__(self, parts=[], stdin=None, stdout=None, stderr=None):
-        self.parts = [shell_escape(str(part)) for part in parts]
-        self.stdin(stdin)
-        self.stdout(stdout)
-        self.stderr(stderr)
-
-    def append(self, part):
-        self.parts.append(shell_escape(str(part)))
-        return self
-
-    def __add__(self, part):
-        return self.append(part)
-
-    def stdin(self, file_path):
-        self._stdin = self.__get_path(file_path)
-        return self
-
-    def stdout(self, file_path):
-        self._stdout = self.__get_path(file_path)
-        return self
-
-    def stderr(self, file_path):
-        self._stderr = self.__get_path(file_path)
-        return self
-
-    def __get_path(self, file_path):
-        if file_path is None:
-            return None
+    @staticmethod
+    def _make_line(line):
+        if isinstance(line, tuple):
+            return " ".join(ShellScript._escape(fragment) for fragment in line)
         else:
-            return Path(file_path)
+            return ShellScript._escape(line)
 
-    def pipe(self, *new_parts):
-        if len(new_parts) == 1 and isinstance(new_parts[0], ShellCommand):
-            cmd = new_parts[0]
-
-            # handle redirections
-            if self._stderr is not None:
-                self.parts.append(self.__redirect_op["stderr"])
-                self.parts.append(shell_escape(str(self._stderr)))
-            assert cmd._stdin is None
-            self._stderr = cmd._stderr
-            self._stdout = cmd._stdout
-
-            # append pipe command
-            self.parts.append("|")
-            self.parts.extend(cmd.parts)
+    @staticmethod
+    def _escape(fragment):
+        if isinstance(fragment, safe):
+            return fragment
         else:
-            self.parts.append("|")
-            for new_part in new_parts:
-                assert not isinstance(new_part, ShellCommand)
-                self.append(new_part)
-        return self
-
-    def __or__(self, command):
-        assert isinstance(command, ShellCommand)
-        return self.pipe(command)
-
-    def __str__(self):
-        all_parts = [
-            self.__redirect("stdin"),
-            *self.parts,
-            self.__redirect("stdout"),
-            self.__redirect("stderr"),
-        ]
-
-        return " ".join(p for p in all_parts if p is not None)
-
-    __redirect_op = {
-        "stdin": "<",
-        "stdout": ">",
-        "stderr": "2>",
-    }
-
-    def __redirect(self, what):
-        file_path = getattr(self, f"_{what}")
-
-        if file_path is None:
-            return None
-        else:
-            esc_file = shell_escape(str(file_path))
-            op = self.__redirect_op[what]
-            return f"{op} {esc_file}"
+            return shell_escape(str(fragment))
 
 
 class PythonCode(AbstractAction):

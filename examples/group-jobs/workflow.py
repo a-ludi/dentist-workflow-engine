@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from dentist import ShellCommand, ShellScript, Workflow
+from dentist import ShellScript, Workflow, safe
 
 
 class ExampleWorkflow(Workflow):
@@ -60,7 +60,7 @@ class ExampleWorkflow(Workflow):
             ],
             outputs=[self.outdir / "result.out"],
             action=lambda inputs, outputs: ShellScript(
-                ShellCommand(["cat", *inputs], stdout=outputs[0])
+                ("cat", *inputs, safe(">"), outputs[0])
             ),
         )
         self.execute_jobs()
@@ -71,8 +71,8 @@ class ExampleWorkflow(Workflow):
             inputs=self.jobs["combine_results"].outputs,
             outputs=[self.outdir / "final-result.out"],
             action=lambda inputs, outputs: ShellScript(
-                ShellCommand(["echo", "final-output"])
-                | ShellCommand(["cat", "-", *inputs], stdout=outputs[0])
+                ("echo", "final-output", safe("\\")),
+                (safe("|"), "cat", "-", *inputs, safe(">"), outputs[0]),
             ),
         )
         self.execute_jobs()
@@ -95,12 +95,12 @@ class ExampleWorkflow(Workflow):
 
     @staticmethod
     def create_file(outputs):
-        return ShellScript(ShellCommand(["echo", outputs[0]], stdout=outputs[0]))
+        return ShellScript(("echo", outputs[0], safe(">"), outputs[0]))
 
     @staticmethod
     def to_upper_case(inputs, outputs):
         return ShellScript(
-            ShellCommand(["tr", "a-z", "A-Z"], stdin=inputs[0], stdout=outputs[0])
+            ("tr", "a-z", "A-Z", safe("<"), inputs[0], safe(">"), outputs[0])
         )
 
 
