@@ -24,7 +24,7 @@ def example_workflow(workflow, *, count, outdir):
 
     workflow.execute_jobs()
 
-    workflow.collect_job(
+    final_job = workflow.collect_job(
         name="concat_results",
         inputs=generated_files,
         outputs=[outdir / "combined.out"],
@@ -32,6 +32,11 @@ def example_workflow(workflow, *, count, outdir):
             ShellCommand(["cat", *inputs], stdout=outputs[0])
         ),
     )
+
+    workflow.execute_jobs()
+    with final_job.outputs[0].open() as file:
+        expected = "\n".join(f"data-{i:05d}" for i in range(count)) + "\n"
+        assert file.read() == expected
 
 
 def submit_jobs(jobs):

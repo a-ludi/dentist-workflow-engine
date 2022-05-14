@@ -15,6 +15,7 @@ class ExampleWorkflow(Workflow):
             self.transform_phase()
             self.combine_phase()
         self.finalize_output()
+        self.check_output()
 
     def create_outdir(self):
         self.outdir.mkdir(parents=True, exist_ok=True)
@@ -75,6 +76,22 @@ class ExampleWorkflow(Workflow):
             ),
         )
         self.execute_jobs()
+
+    def check_output(self):
+        self.execute_jobs()
+        lines = [
+            "final-output",
+            *(
+                str(path).upper()
+                for path in (
+                    self.jobs["create_foo"].outputs[0],
+                    self.jobs["create_bar"].outputs[0],
+                )
+            ),
+        ]
+        expected = "\n".join(lines) + "\n"
+        with self.jobs["finalize_output"].outputs[0].open() as file:
+            assert file.read() == expected
 
     @staticmethod
     def create_file(outputs):

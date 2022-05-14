@@ -13,6 +13,7 @@ class ExampleWorkflow(Workflow):
         self.create_outdir()
         self.transform_phase()
         self.combine_phase()
+        self.check_output()
 
     def create_outdir(self):
         self.collect_job(
@@ -51,6 +52,11 @@ class ExampleWorkflow(Workflow):
             exec_local=True,
             action=self.concat_files,
         )
+
+    def check_output(self):
+        self.execute_jobs()
+        with self.jobs["combine_results"].outputs[0].open() as file:
+            assert file.read() == "FOO-DATA\nBAR-DATA\n"
 
     @staticmethod
     @python_code

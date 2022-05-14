@@ -13,6 +13,7 @@ class ExampleWorkflow(Workflow):
         self.create_outdir()
         self.transform_phase()
         self.combine_phase()
+        self.check_output()
 
     def create_outdir(self):
         self.outdir.mkdir(parents=True, exist_ok=True)
@@ -45,6 +46,11 @@ class ExampleWorkflow(Workflow):
                 ShellCommand(["cat", *inputs], stdout=outputs[0])
             ),
         )
+
+    def check_output(self):
+        self.execute_jobs()
+        with self.jobs["combine_results"].outputs[0].open() as file:
+            assert file.read() == "FOO-DATA\nBAR-DATA\n"
 
     @staticmethod
     def to_upper_case(inputs, outputs):

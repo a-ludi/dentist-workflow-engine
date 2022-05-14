@@ -28,7 +28,7 @@ def example_workflow(workflow, *, indir, outdir):
 
     workflow.execute_jobs()
 
-    workflow.collect_job(
+    final_job = workflow.collect_job(
         name="combine_results",
         inputs=[
             *workflow.jobs["transform_foo"].outputs,
@@ -39,6 +39,10 @@ def example_workflow(workflow, *, indir, outdir):
             ShellCommand(["cat", *inputs], stdout=outputs[0])
         ),
     )
+
+    workflow.execute_jobs()
+    with final_job.outputs[0].open() as file:
+        assert file.read() == "FOO-DATA\nBAR-DATA\n"
 
 
 def main():
