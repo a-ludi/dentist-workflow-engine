@@ -1,3 +1,4 @@
+import pytest
 from dentist.workflow.engine.util import inject
 
 
@@ -26,11 +27,8 @@ def test_inject():
     # test required parameter
     assert inject(fun1, required=test_required, **vars)() is True
     assert inject(fun2, required=test_required, **vars)() is True
-    try:
+    with pytest.raises(ValueError):
         inject(fun3, required=test_required, **vars)
-        assert False
-    except ValueError:
-        assert True
 
     # test additional args in secondary call
     assert inject(fun1)(a=vars["a"]) is True
