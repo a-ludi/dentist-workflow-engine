@@ -11,7 +11,7 @@ from . import executors
 from .actions import AbstractAction
 from .executors import AbstractExecutor, JobFailed, LocalExecutor
 from .resources import RootResources
-from .util import inject
+from .util import inject, throws
 from .workdir import Workdir
 
 __all__ = [
@@ -208,7 +208,16 @@ class Workflow(object):
         self.definition(self, *args, **kwargs)
 
     def collect_job(
-        self, *, name=None, index=None, exec_local=False, inputs, outputs, action=None
+        self,
+        *,
+        name=None,
+        index=None,
+        exec_local=False,
+        inputs,
+        outputs,
+        action=None,
+        pre_conditions=[],
+        post_conditions=[],
     ):
         if name is None and action is None:
             # act as function decorator
@@ -220,6 +229,8 @@ class Workflow(object):
                     exec_local=exec_local,
                     inputs=inputs,
                     outputs=outputs,
+                    pre_conditions=pre_conditions,
+                    post_conditions=post_conditions,
                 )
 
             return collector
@@ -247,6 +258,11 @@ class Workflow(object):
         for file_list in ("inputs", "outputs"):
             params[file_list] = self.__prepare_file_list(params[file_list])
 
+        # add basic file conditions
+        params["pre_conditions"].insert(0, self.check_inputs)
+        params["post_conditions"].append(self.check_up_to_date)
+        # params["post_conditions"].append(self.check_outputs)
+
         return params
 
     def __prepare_file_list(self, file_list):
@@ -266,11 +282,11 @@ class Workflow(object):
         if self._collect_group:
             self.job_queue.append(job)
         else:
-            self._check_inputs(job.inputs)
-            if self.force or not self._is_up_to_date(job.inputs, job.outputs):
-                force_suffix = (
-                    " (forced)" if self._is_up_to_date(job.inputs, job.outputs) else ""
-                )
+            job.check_pre_conditions()
+            post_check = job.check_post_conditions(return_bool=True)
+
+            if self.force or not post_check:
+                force_suffix = " (forced)" if post_check else ""
                 log.debug(f"queued job {job.describe()}{force_suffix}")
                 self.job_queue.append(job)
             else:
@@ -292,7 +308,8 @@ class Workflow(object):
 
         return job
 
-    def _check_inputs(self, inputs):
+    @staticmethod
+    def check_inputs(inputs):
         missing_inputs = [input for input in inputs if not input.exists()]
         if len(missing_inputs) > 0:
             raise MissingInputs(missing_inputs)
@@ -310,7 +327,8 @@ class Workflow(object):
             if not output.exists() or output.stat().st_mtime < input_mtime
         ]
 
-    def _is_up_to_date(self, inputs, outputs):
+    @staticmethod
+    def check_up_to_date(inputs, outputs):
         input_mtime = max(
             float("-inf"),
             float("-inf"),
@@ -325,11 +343,10 @@ class Workflow(object):
             ),
         )
 
-        if input_mtime == float("-inf"):
-            # no input is up-to-date iff output exists
-            return output_mtime > float("-inf")
-        else:
-            return input_mtime <= output_mtime
+        if output_mtime == float("-inf"):
+            raise Exception("missing outputs")
+        elif input_mtime > output_mtime:
+            raise Exception("inputs are newer than outputs")
 
     def _discard_files(self, files):
         log.debug(f"discarding files: {', '.join(str(f) for f in files)}")
@@ -401,14 +418,8 @@ class Workflow(object):
             log.warning("nothing to execute in grouped_jobs")
             return
 
-        group_inputs = chain.from_iterable(
-            job.inputs for job in self._group_job_batches[0]
-        )
-        group_outputs = chain.from_iterable(
-            job.outputs for job in self._group_job_batches[-1]
-        )
-        self._check_inputs(group_inputs)
-        if not self._is_up_to_date(group_inputs, group_outputs):
+        self.check_group_pre_conditions()
+        if not self.check_group_post_conditions(return_bool=True):
             self._collect_group = False
             for job_batch in self._group_job_batches:
                 self.job_queue = job_batch
@@ -430,13 +441,7 @@ class Workflow(object):
         if len(self._group_job_batches) == 0:
             return
 
-        group_inputs = list(
-            chain.from_iterable(job.inputs for job in self._group_job_batches[0])
-        )
-        group_outputs = list(
-            chain.from_iterable(job.outputs for job in self._group_job_batches[-1])
-        )
-        assert self._is_up_to_date(group_inputs, group_outputs)
+        assert self.check_group_post_conditions(return_bool=True)
 
         all_files = chain(
             chain.from_iterable(
@@ -447,6 +452,12 @@ class Workflow(object):
             ),
         )
         all_files = set(str(file) for file in all_files)
+        group_inputs = list(
+            chain.from_iterable(job.inputs for job in self._group_job_batches[0])
+        )
+        group_outputs = list(
+            chain.from_iterable(job.outputs for job in self._group_job_batches[-1])
+        )
         interface_files = set(str(file) for file in chain(group_inputs, group_outputs))
         intermediate_files = [
             Path(intermediate_file) for intermediate_file in all_files - interface_files
@@ -467,7 +478,13 @@ class Workflow(object):
                 )
 
     @contextmanager
-    def grouped_jobs(self, group_name, temp_intermediates=False):
+    def grouped_jobs(
+        self,
+        group_name,
+        temp_intermediates=False,
+        pre_conditions=[],
+        post_conditions=[],
+    ):
         if self.force:
             # execute everything as normal if force
             yield
@@ -475,6 +492,12 @@ class Workflow(object):
             self._collect_group = True
             self._group_job_batches = []
             self._group_job_name = group_name
+            self._group_job_pre_conditions = pre_conditions
+            self._group_job_pre_conditions.insert(
+                0, self.check_grouped_jobs_preconditions
+            )
+            self._group_job_post_conditions = post_conditions
+            self._group_job_post_conditions.append(self.is_group_up_to_date)
             try:
                 yield
                 self.execute_jobs(final=True)
@@ -485,6 +508,40 @@ class Workflow(object):
                 self._group_job_name = None
                 self._group_job_batches = []
                 self._collect_group = False
+
+    def check_group_pre_conditions(self, return_bool=False):
+        if return_bool:
+            return not throws(self.check_group_pre_conditions)
+
+        for handler in self._group_job_pre_conditions:
+            inject(
+                handler,
+                name=self._group_job_name,
+                first_stage=self._group_job_batches[0],
+            )()
+
+    def check_group_post_conditions(self, return_bool=False):
+        if return_bool:
+            return not throws(self.check_group_post_conditions)
+
+        for handler in self._group_job_post_conditions:
+            inject(
+                handler,
+                name=self._group_job_name,
+                first_stage=self._group_job_batches[0],
+                last_stage=self._group_job_batches[-1],
+            )()
+
+    @staticmethod
+    def check_grouped_jobs_preconditions(first_stage):
+        for job in first_stage:
+            job.check_pre_conditions()
+
+    @staticmethod
+    def is_group_up_to_date(first_stage, last_stage):
+        group_inputs = list(chain.from_iterable(job.inputs for job in first_stage))
+        group_outputs = list(chain.from_iterable(job.outputs for job in last_stage))
+        Workflow.check_up_to_date(group_inputs, group_outputs)
 
 
 class JobState(Enum):
@@ -511,7 +568,17 @@ class JobState(Enum):
 
 class Job(AbstractAction):
     def __init__(
-        self, *, name, index=None, exec_local=False, inputs, outputs, action, resources
+        self,
+        *,
+        name,
+        index=None,
+        exec_local=False,
+        inputs,
+        outputs,
+        action,
+        resources,
+        pre_conditions=[],
+        post_conditions=[],
     ):
         self.name = name
         if not self.name.isidentifier():
@@ -532,6 +599,36 @@ class Job(AbstractAction):
         self.state = JobState.WAITING
         self.exit_code = -1
         self.id = None
+        self.pre_conditions = pre_conditions
+        self.post_conditions = post_conditions
+
+    def check_pre_conditions(self, return_bool=False):
+        if return_bool:
+            return not throws(self.check_pre_conditions)
+
+        for handler in self.pre_conditions:
+            handler = inject(
+                handler,
+                name=self.name,
+                index=self.index,
+                inputs=self.inputs,
+                outputs=self.outputs,
+            )()
+
+    def check_post_conditions(self, return_bool=False):
+        if return_bool:
+            return not throws(self.check_post_conditions)
+
+        for handler in self.post_conditions:
+            handler = inject(
+                handler,
+                name=self.name,
+                index=self.index,
+                inputs=self.inputs,
+                outputs=self.outputs,
+                state=self.state,
+                exit_code=self.exit_code,
+            )()
 
     @property
     def is_batch(self):

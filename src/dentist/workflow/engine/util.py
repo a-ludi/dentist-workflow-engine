@@ -22,3 +22,12 @@ def inject(function, required=[], **vars):
     injected.__name__ = function.__name__
 
     return injected
+
+
+def throws(fun, *, exception_cls=Exception):
+    try:
+        fun()
+    except exception_cls:
+        return True
+
+    return False
