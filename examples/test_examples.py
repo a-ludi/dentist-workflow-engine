@@ -65,3 +65,7 @@ def test_workflow_python_code():
 
 def test_workflow_slurm():
     _test_workflow("slurm", {"count", "outdir"})
+
+
+def test_workflow_file_lists():
+    _test_workflow("file-lists", {"indir", "outdir"})

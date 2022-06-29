@@ -9,6 +9,7 @@ from sys import argv
 
 from . import executors
 from .actions import AbstractAction
+from .container import FileList
 from .executors import AbstractExecutor, JobFailed, LocalExecutor
 from .resources import RootResources
 from .util import inject, throws
@@ -270,7 +271,7 @@ class Workflow(object):
         return params
 
     def __prepare_file_list(self, file_list):
-        return [Path(file) for file in file_list]
+        return FileList.from_any(file_list)
 
     def __prepare_action(self, action, params):
         if callable(action) and not isinstance(action, AbstractAction):
@@ -639,6 +640,16 @@ class Job(AbstractAction):
     @property
     def is_batch(self):
         return self.index is not None
+
+    @property
+    def output(self):
+        if len(self.outputs) == 1:
+            return next(iter(self.outputs))
+        else:
+            raise NotImplementedError(
+                "`job.output` is only allowed if job has exactly one output"
+                f"but got {len(self.outputs)}"
+            )
 
     def done(self):
         assert not self.state.is_finished
