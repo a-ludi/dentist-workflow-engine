@@ -8,20 +8,21 @@ class ExampleWorkflow(Workflow):
         super().__init__(*args, **kwargs)
         self.indir = indir
         self.outdir = outdir
+        self.logdir = outdir / "logs"
 
     def run(self):
-        self.create_outdir()
+        self.create_outdirs()
         self.transform_phase()
         self.combine_phase()
         self.check_output()
 
-    def create_outdir(self):
+    def create_outdirs(self):
         self.collect_job(
-            name="create_outdir",
+            name="create_outdirs",
             inputs=[],
-            outputs=[self.outdir],
+            outputs=[self.outdir, self.logdir],
             exec_local=True,
-            action=self.create_outdirs,
+            action=self.act_create_outdirs,
         )
         self.execute_jobs()
 
@@ -48,23 +49,29 @@ class ExampleWorkflow(Workflow):
                 *self.jobs["transform_bar"].outputs,
             ],
             outputs=[self.outdir / "result.out"],
+            log=self.logdir / "combine.log",
             exec_local=True,
         )
         @python_code
-        def combine_results(inputs, outputs):
-            with open(outputs[0], "w") as out:
-                for input in inputs:
-                    with open(input) as infile:
-                        out.write(infile.read())
+        def combine_results(inputs, outputs, log):
+            with open(log, "w") as log_fp:
+                log_fp.write("combining inputs...")
+                with open(outputs[0], "w") as out:
+                    for input in inputs:
+                        with open(input) as infile:
+                            out.write(infile.read())
+                log_fp.write("done\n")
 
     def check_output(self):
         self.execute_jobs()
         with self.jobs["combine_results"].outputs[0].open() as file:
             assert file.read() == "FOO-DATA\nBAR-DATA\n"
+        with self.jobs["combine_results"].log.open() as file:
+            assert file.read() == "combining inputs...done\n"
 
     @staticmethod
     @python_code
-    def create_outdirs(outputs):
+    def act_create_outdirs(outputs):
         for outdir in outputs:
             outdir.mkdir(parents=True, exist_ok=True)
 

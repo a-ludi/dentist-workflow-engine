@@ -143,6 +143,10 @@ class LocalExecutor(AbstractExecutor):
                 report_job(job)
             except Exception as reason:
                 job.failed(1)
+                with job.open_log() as log_fp:
+                    if log_fp is not None:
+                        log_fp.write(str(reason))
+                        log_fp.write("\n")
                 report_job(job)
                 if return_error:
                     return JobFailed(job, reason)
@@ -150,7 +154,10 @@ class LocalExecutor(AbstractExecutor):
                     raise JobFailed(job, reason)
         else:
             try:
-                subprocess.run(job.to_command(), check=True)
+                with job.open_log() as log_fp:
+                    subprocess.run(
+                        job.to_command(), check=True, stdout=log_fp, stderr=log_fp
+                    )
                 job.done()
                 report_job(job)
             except subprocess.CalledProcessError as reason:

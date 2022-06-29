@@ -12,6 +12,8 @@ def example_workflow(workflow, *, indir, outdir):
 
     # make sure outdir exists
     outdir.mkdir(parents=True, exist_ok=True)
+    logdir = outdir / "logs"
+    logdir.mkdir(parents=True, exist_ok=True)
 
     workflow.collect_job(
         name="transform_foo",
@@ -35,14 +37,19 @@ def example_workflow(workflow, *, indir, outdir):
             *workflow.jobs["transform_bar"].outputs,
         ],
         outputs=[outdir / "result.out"],
+        log=logdir / "combine.log",
         action=lambda inputs, outputs: ShellScript(
-            ("cat", *inputs, safe(">"), outputs[0])
+            ("echo", "-n", "combining inputs..."),
+            ("cat", *inputs, safe(">"), outputs[0]),
+            ("echo", "done"),
         ),
     )
 
     workflow.execute_jobs()
     with final_job.outputs[0].open() as file:
         assert file.read() == "FOO-DATA\nBAR-DATA\n"
+    with final_job.log.open() as file:
+        assert file.read() == "combining inputs...done\n"
 
 
 def main():

@@ -9,6 +9,8 @@ def example_workflow(workflow, *, count, outdir):
 
     # make sure outdir exists
     outdir.mkdir(parents=True, exist_ok=True)
+    logdir = outdir / "logs"
+    logdir.mkdir(parents=True, exist_ok=True)
 
     for i in range(count):
         workflow.collect_job(
@@ -30,8 +32,11 @@ def example_workflow(workflow, *, count, outdir):
         ),
         outputs=[outdir / "combined.out"],
         exec_local=True,
+        log=logdir / "combine.log",
         action=lambda inputs, outputs: ShellScript(
-            ("cat", *inputs, safe(">"), outputs[0])
+            ("echo", "-n", "combining inputs..."),
+            ("cat", *inputs, safe(">"), outputs[0]),
+            ("echo", "done"),
         ),
     )
 
@@ -39,6 +44,8 @@ def example_workflow(workflow, *, count, outdir):
     with final_job.outputs[0].open() as file:
         expected = "\n".join(f"data-{i:05d}" for i in range(count)) + "\n"
         assert file.read() == expected
+    with final_job.log.open() as file:
+        assert file.read() == "combining inputs...done\n"
 
 
 def main():

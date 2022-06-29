@@ -216,6 +216,7 @@ class Workflow(object):
         inputs,
         outputs,
         action=None,
+        log=None,
         pre_conditions=[],
         post_conditions=[],
     ):
@@ -229,6 +230,7 @@ class Workflow(object):
                     exec_local=exec_local,
                     inputs=inputs,
                     outputs=outputs,
+                    log=log,
                     pre_conditions=pre_conditions,
                     post_conditions=post_conditions,
                 )
@@ -255,6 +257,8 @@ class Workflow(object):
         del params["self"]
         del params["action"]
 
+        if params["log"] is not None:
+            params["log"] = Path(params["log"])
         for file_list in ("inputs", "outputs"):
             params[file_list] = self.__prepare_file_list(params[file_list])
 
@@ -576,6 +580,7 @@ class Job(AbstractAction):
         inputs,
         outputs,
         action,
+        log,
         resources,
         pre_conditions=[],
         post_conditions=[],
@@ -594,6 +599,7 @@ class Job(AbstractAction):
         if not isinstance(action, AbstractAction):
             raise ValueError("Job action must be derived from AbstractAction.")
         self.action = action
+        self.log = log
         self.resources = resources
         self.ncpus = self.resources.get("ncpus", 1)
         self.state = JobState.WAITING
@@ -650,11 +656,25 @@ class Job(AbstractAction):
         super().enable_tracking(status_path)
         self.action.enable_tracking(status_path)
 
+    @contextmanager
+    def open_log(self):
+        if self.log is None:
+            yield None
+        else:
+            with open(self.log, "w") as fd:
+                yield fd
+
     def to_command(self):
         return self.action.to_command()
 
     def __str__(self):
-        return str(self.action)
+        action_str = str(self.action)
+        if self.log is None:
+            return action_str
+        elif "\n" in action_str:
+            return f"{{\n{action_str}\n}} &> {self.log}"
+        else:
+            return f"{action_str} &> {self.log}"
 
     def describe(self):
         if self.id is None:
