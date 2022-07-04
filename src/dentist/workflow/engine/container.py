@@ -27,11 +27,14 @@ class FileList:
         )
 
     @staticmethod
-    def _to_paths(item):
+    def _to_paths(item, depth=0):
+        if depth > 1:
+            raise ValueError("invalid file list item: nested lists are not supported")
+
         try:
             return Path(item)
         except TypeError:
-            return tuple(FileList._to_paths(sub_item) for sub_item in item)
+            return tuple(FileList._to_paths(sub_item, depth + 1) for sub_item in item)
 
     @staticmethod
     def from_any(container):
