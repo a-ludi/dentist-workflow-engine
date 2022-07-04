@@ -7,8 +7,8 @@ class FileList:
 
     The file list has some unique features:
 
-    - items are converted to `pathlib.Path`, or to lists of `pathlib.Path`
-      if a list or tuple is given
+    - items are converted to `pathlib.Path`, or to tuples of `pathlib.Path`
+      if an iterable is given
     - items of the list may be named using named parameters.
     - `iter(file_list)` iterates over the individual paths implicitly
       flattening lists/tuples
@@ -17,12 +17,7 @@ class FileList:
     def __init__(self, *items, **named_items):
         self._num_positional = len(items)
         items = chain(items, named_items.values())
-        self._items = tuple(
-            tuple(Path(sub_item) for sub_item in item)
-            if FileList.is_iterable(item)
-            else Path(item)
-            for item in items
-        )
+        self._items = tuple(FileList._to_paths(item) for item in items)
         self._index = dict(
             (key, idx)
             for idx, key in enumerate(named_items.keys(), self._num_positional)
@@ -30,6 +25,13 @@ class FileList:
         self._len = sum(
             len(item) if isinstance(item, list) else 1 for item in self._items
         )
+
+    @staticmethod
+    def _to_paths(item):
+        try:
+            return Path(item)
+        except TypeError:
+            return tuple(FileList._to_paths(sub_item) for sub_item in item)
 
     @staticmethod
     def from_any(container):
@@ -50,17 +52,13 @@ class FileList:
             # treat everything else as a sequence of items
             return FileList(*container)
 
-    @staticmethod
-    def is_iterable(obj):
-        return isinstance(obj, list) or isinstance(obj, tuple)
-
     def __iter__(self):
         for item in self._items:
-            if FileList.is_iterable(item):
+            if isinstance(item, Path):
+                yield item
+            else:
                 for sub_item in item:
                     yield sub_item
-            else:
-                yield item
 
     def __len__(self):
         return self._len
@@ -80,6 +78,9 @@ class FileList:
 
     def __getitem__(self, key):
         return self._items[self._lookup(key)]
+
+    def __getattr__(self, attr):
+        return self[attr]
 
     def _lookup(self, key):
         if isinstance(key, int):
