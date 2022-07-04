@@ -45,7 +45,10 @@ _metavar = {}
 _shortopts = {"dry_run": ["-n"]}
 _choices = {"submit_jobs": interfaces.names}
 _nargs = {}
-_action = {"debug_flags": CollectSet}
+_action = {
+    bool: "store_true",
+    "debug_flags": CollectSet,
+}
 _help = {
     "workflow_root": """
         Define root directory for the workflow under which
@@ -90,16 +93,20 @@ def cli_parser(script_root=None, **override_defaults):
 
     for param in workflow_params.values():
         long_opt = "--" + param.name.replace("_", "-")
-        parser.add_argument(
-            long_opt,
-            *_shortopts.get(param.name, []),
-            metavar=_metavar.get(param.name, None),
-            type=_type.get(param.name, str),
-            action=_action.get(param.name, None),
+        type_ = _type.get(param.name, str)
+        kwargs = dict(
+            type=type_,
+            action=_action.get(param.name, _action.get(type_, None)),
             default=override_defaults.get(param.name, param.default),
             choices=_choices.get(param.name, None),
             nargs=_nargs.get(param.name, None),
             help=_help.get(param.name, param.name.replace("_", " ")),
+            metavar=_metavar.get(param.name, None),
         )
+        if kwargs["action"] in {"store_const", "store_true", "store_false"}:
+            del kwargs["metavar"]
+            del kwargs["type"]
+        kwargs = dict((k, v) for k, v in kwargs.items() if v is not None)
+        parser.add_argument(long_opt, *_shortopts.get(param.name, []), **kwargs)
 
     return parser
