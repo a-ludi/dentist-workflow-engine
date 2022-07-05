@@ -1,3 +1,6 @@
 __default__:
-    ncpus: 1
-    mem:   1G
+    ncpus:  1
+    mem_mb: 1024
+
+concat_results:
+    mem: 1G

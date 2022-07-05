@@ -62,10 +62,14 @@ class Resources(dict):
         def to_str(key, value):
             key = str(key)
             key = tr.get(key, key)
-            is_short = len(key) == 1
-            prefix = str(short_opt_prefix if is_short else long_opt_prefix)
-            sep = str(short_opt_sep if is_short else long_opt_sep)
-            value = str(value)
+
+            if callable(key):
+                return key(value)
+            else:
+                is_short = len(key) == 1
+                prefix = str(short_opt_prefix if is_short else long_opt_prefix)
+                sep = str(short_opt_sep if is_short else long_opt_sep)
+                value = str(value)
 
             return prefix + key + sep + value
 
