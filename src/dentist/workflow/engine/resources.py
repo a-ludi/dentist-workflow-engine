@@ -16,7 +16,7 @@ class RootResources(object):
 
     def __init__(self, data={}):
         self._enforce_dict(data, "the root")
-        self._default = data.get("__default__", dict())
+        self._default = data.setdefault("__default__", dict())
         self._default.setdefault("threads", 1)
         self._enforce_dict(self._default, "__default__")
         self._data = data
@@ -48,6 +48,9 @@ class RootResources(object):
         res.update(self._data.get(job_name, {}))
 
         return Resources(res)
+
+    def __str__(self):
+        return str(self._data)
 
 
 class Resources(dict):
