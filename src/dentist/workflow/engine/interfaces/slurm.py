@@ -53,6 +53,7 @@ def _prepare_params(job_s):
     is_batch = isinstance(job_s, list)
     base_job = job_s[0] if is_batch else job_s
     params = base_job.resources
+    params.setdefault("job-name", base_job.name)
     if is_batch:
         params["array"] = ",".join(str(job.index) for job in job_s)
 
