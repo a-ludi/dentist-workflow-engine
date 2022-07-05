@@ -218,6 +218,7 @@ class Workflow(object):
         outputs,
         action=None,
         log=None,
+        resources=None,
         pre_conditions=[],
         post_conditions=[],
     ):
@@ -232,6 +233,7 @@ class Workflow(object):
                     inputs=inputs,
                     outputs=outputs,
                     log=log,
+                    resources=resources,
                     pre_conditions=pre_conditions,
                     post_conditions=post_conditions,
                 )
@@ -243,7 +245,6 @@ class Workflow(object):
             raise ValueError("job is missing `action`")
 
         params = self.__preprare_params(locals().copy())
-        params["resources"] = self.resources[name]
         action = self.__prepare_action(action, params)
         job = self.__collect_job(Job(action=action, **params))
 
@@ -262,6 +263,18 @@ class Workflow(object):
             params["log"] = Path(params["log"])
         for file_list in ("inputs", "outputs"):
             params[file_list] = self.__prepare_file_list(params[file_list])
+
+        if "resources" in params:
+            if isinstance(params["resources"], dict):
+                # user-supplied resource overrides
+                base_res = self.resources[params["name"]]
+                params["resources"] = base_res | params["resources"]
+            else:
+                # user-supplied resource identifier
+                params["resources"] = self.resources[params["resources"]]
+        else:
+            # use job name as resource identifier
+            params["resources"] = self.resources[params["name"]]
 
         # add basic file conditions
         params["pre_conditions"].insert(0, self.check_inputs)
