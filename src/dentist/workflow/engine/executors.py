@@ -110,16 +110,54 @@ class LocalExecutor(AbstractExecutor):
     def _run_parallel(self, jobs, *, print_commands, threads):
         from concurrent.futures import ThreadPoolExecutor
 
-        errors = None
-        with ThreadPoolExecutor(max_workers=threads) as pool:
-            errors = pool.map(
-                lambda job: LocalExecutor._execute_job(
+        for job in jobs:
+            if job.ncpus > threads:
+                raise JobFailed(
                     job,
-                    print_commands=print_commands,
-                    return_error=True,
-                ),
-                jobs,
-            )
+                    "insuffient number of threads provided: "
+                    f"got {threads} but job needs {job.ncpus}",
+                )
+
+        job_queue = jobs.copy()
+        available_threads = threads
+        errors = list()
+
+        def job_finished_cb(future):
+            nonlocal available_threads, errors
+
+            assert future.done()
+            result = future.result()
+
+            if isinstance(result, Exception):
+                if isinstance(result, JobFailed):
+                    available_threads += result.job.ncpus
+                    errors.append(result)
+                else:
+                    raise result
+            else:
+                available_threads += result.ncpus
+
+        with ThreadPoolExecutor(max_workers=threads) as pool:
+            while len(job_queue) > 0:
+                submitted_jobs = list()
+                for job in job_queue:
+                    if job.ncpus <= available_threads:
+                        available_threads -= job.ncpus
+                        future = pool.submit(
+                            LocalExecutor._execute_job,
+                            job,
+                            print_commands=print_commands,
+                            return_error=True,
+                        )
+                        future.add_done_callback(job_finished_cb)
+                        submitted_jobs.append(job)
+                # remove submitted jobs from the queue
+                job_queue = [job for job in job_queue if job not in submitted_jobs]
+                if len(job_queue) == 0:
+                    # all jobs submitted -> just wait for results
+                    break
+                # wait a bit before submitting more jobs
+                sleep(0.1)
 
         errors = [e for e in errors if e is not None]
         if len(errors) > 0:
@@ -127,12 +165,6 @@ class LocalExecutor(AbstractExecutor):
 
     @staticmethod
     def _execute_job(job, *, print_commands, return_error=False):
-        if job.resources["ncpus"] > 1:
-            log.warning(
-                "unsupported operation for local execution: "
-                f"job `{job.describe()}` requested {job.resources['ncpus']} CPUs."
-            )
-
         if print_commands:
             print(job)
 
@@ -141,6 +173,8 @@ class LocalExecutor(AbstractExecutor):
                 job.action()
                 job.done()
                 report_job(job)
+
+                return job
             except Exception as reason:
                 job.failed(1)
                 with job.open_log() as log_fp:
@@ -160,6 +194,8 @@ class LocalExecutor(AbstractExecutor):
                     )
                 job.done()
                 report_job(job)
+
+                return job
             except subprocess.CalledProcessError as reason:
                 job.failed(reason.returncode)
                 report_job(job)

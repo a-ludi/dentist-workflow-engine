@@ -1,0 +1,8 @@
+{
+    "generate": {
+        "ncpus": 2
+    },
+    "concat_results": {
+        "ncpus": 5
+    }
+}

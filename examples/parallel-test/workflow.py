@@ -54,6 +54,7 @@ def main():
         outdir=script_root / "results",
         dry_run=False,
         print_commands=True,
+        resources="resources.json",
     )
 
 
