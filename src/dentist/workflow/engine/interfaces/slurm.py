@@ -57,7 +57,7 @@ def _prepare_params(job_s):
     if is_batch:
         params["array"] = ",".join(str(job.index) for job in job_s)
 
-    return params.to_cli(tr={"ncpus": "c", "mem_mb": lambda mem: f"--mem={mem}M"})
+    return params.to_cli(tr={"threads": "c", "mem_mb": lambda mem: f"--mem={mem}M"})
 
 
 def _submit_solitary_job(job, script_name, debug=False):

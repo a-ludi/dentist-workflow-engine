@@ -17,7 +17,7 @@ class RootResources(object):
     def __init__(self, data={}):
         self._enforce_dict(data, "the root")
         self._default = data.get("__default__", dict())
-        self._default.setdefault("ncpus", 1)
+        self._default.setdefault("threads", 1)
         self._enforce_dict(self._default, "__default__")
         self._data = data
 

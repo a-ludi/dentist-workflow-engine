@@ -111,11 +111,11 @@ class LocalExecutor(AbstractExecutor):
         from concurrent.futures import ThreadPoolExecutor
 
         for job in jobs:
-            if job.ncpus > threads:
+            if job.threads > threads:
                 raise JobFailed(
                     job,
                     "insuffient number of threads provided: "
-                    f"got {threads} but job needs {job.ncpus}",
+                    f"got {threads} but job needs {job.threads}",
                 )
 
         job_queue = jobs.copy()
@@ -130,19 +130,19 @@ class LocalExecutor(AbstractExecutor):
 
             if isinstance(result, Exception):
                 if isinstance(result, JobFailed):
-                    available_threads += result.job.ncpus
+                    available_threads += result.job.threads
                     errors.append(result)
                 else:
                     raise result
             else:
-                available_threads += result.ncpus
+                available_threads += result.threads
 
         with ThreadPoolExecutor(max_workers=threads) as pool:
             while len(job_queue) > 0:
                 submitted_jobs = list()
                 for job in job_queue:
-                    if job.ncpus <= available_threads:
-                        available_threads -= job.ncpus
+                    if job.threads <= available_threads:
+                        available_threads -= job.threads
                         future = pool.submit(
                             LocalExecutor._execute_job,
                             job,

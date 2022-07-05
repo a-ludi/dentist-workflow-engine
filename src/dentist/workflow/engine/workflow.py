@@ -615,7 +615,7 @@ class Job(AbstractAction):
         self.action = action
         self.log = log
         self.resources = resources
-        self.ncpus = self.resources.get("ncpus", 1)
+        self.threads = self.resources.get("threads", 1)
         self.state = JobState.WAITING
         self.exit_code = -1
         self.id = None

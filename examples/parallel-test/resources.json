@@ -1,8 +1,8 @@
 {
     "generate": {
-        "ncpus": 2
+        "threads": 2
     },
     "concat_results": {
-        "ncpus": 5
+        "threads": 5
     }
 }
