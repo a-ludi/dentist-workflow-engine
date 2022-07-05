@@ -56,9 +56,8 @@ def main():
     import logging
     import sys
 
-    logging.basicConfig(level=logging.DEBUG)
     script_root = Path(sys.argv[0]).parent
-    parser = cli_parser()
+    parser = cli_parser(log_level=True)
     parser.add_argument(
         "--indir",
         metavar="<dir>",
@@ -76,6 +75,7 @@ def main():
         "`./results` relative to the workflow file",
     )
     params = vars(parser.parse_args())
+    logging.basicConfig(level=params.pop("log_level"))
     example_workflow(**params)
 
 

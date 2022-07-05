@@ -1,4 +1,5 @@
 import argparse
+import logging
 import sys
 from inspect import signature
 from pathlib import Path
@@ -72,7 +73,33 @@ _help = {
 }
 
 
-def cli_parser(script_root=None, **override_defaults):
+class LogLevel(int):
+    _to_log_level = {
+        "critical": logging.CRITICAL,
+        "error": logging.ERROR,
+        "warning": logging.WARNING,
+        "info": logging.INFO,
+        "debug": logging.DEBUG,
+    }
+
+    def __new__(cls, level):
+        obj = int.__new__(cls, LogLevel._to_log_level.get(level, level))
+
+        return obj
+
+    def __eq__(self, other):
+        if isinstance(other, int):
+            return super().__eq__(other)
+        elif isinstance(other, str):
+            return other in LogLevel._to_log_level and self == LogLevel(other)
+        else:
+            return False
+
+
+LogLevel("critical")
+
+
+def cli_parser(script_root=None, log_level=False, **override_defaults):
     if script_root is None:
         script_root = Path(sys.argv[0]).parent
 
@@ -108,5 +135,15 @@ def cli_parser(script_root=None, **override_defaults):
             del kwargs["type"]
         kwargs = dict((k, v) for k, v in kwargs.items() if v is not None)
         parser.add_argument(long_opt, *_shortopts.get(param.name, []), **kwargs)
+
+    if log_level:
+        parser.add_argument(
+            "--log-level",
+            "-L",
+            type=LogLevel,
+            choices=("critical", "error", "warning", "info", "debug"),
+            default="info",
+            help="set logging verbosity",
+        )
 
     return parser
