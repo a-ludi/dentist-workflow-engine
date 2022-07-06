@@ -7,11 +7,14 @@ class FileList:
 
     The file list has some unique features:
 
-    - items are converted to `pathlib.Path`, or to tuples of `pathlib.Path`
-      if an iterable is given
+    - items are converted with the following conventions:
+        - item of type `FileList` are not converted
+        - other items are tried to convert to `pathlib.Path`
+        - if that fails, they are assumed to be iterables that are
+          recursively converted to `FileList`s
     - items of the list may be named using named parameters.
     - `iter(file_list)` iterates over the individual paths implicitly
-      flattening lists/tuples
+      flattening nested structures
     """
 
     def __init__(self, *items, **named_items):
@@ -27,14 +30,13 @@ class FileList:
         )
 
     @staticmethod
-    def _to_paths(item, depth=0):
-        if depth > 1:
-            raise ValueError("invalid file list item: nested lists are not supported")
-
+    def _to_paths(item):
+        if isinstance(item, FileList):
+            return item
         try:
             return Path(item)
         except TypeError:
-            return tuple(FileList._to_paths(sub_item, depth + 1) for sub_item in item)
+            return FileList(*item)
 
     @staticmethod
     def from_any(container):
@@ -102,8 +104,8 @@ class FileList:
 
     def __str__(self):
         def _item2str(item):
-            if isinstance(item, tuple):
-                return f"[{', '.join(_item2str(sub_item) for sub_item in item)}]"
+            if isinstance(item, FileList):
+                return str(item)
             else:
                 return repr(str(item))
 

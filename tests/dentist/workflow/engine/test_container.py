@@ -11,21 +11,23 @@ def _get_file_lists():
     l2 = FileList(a="a", b="b", c="c")
     l3 = FileList("0", "1", "2", "3", a="a", b="b", c="c")
     l4 = FileList("0", ["1", "2", "3"], abc=list("abc"))
+    l5 = FileList(abc=FileList(*"abc"))
 
-    return l1, l2, l3, l4
+    return l1, l2, l3, l4, l5
 
 
 def test_file_list_iter():
-    l1, l2, l3, l4 = _get_file_lists()
+    l1, l2, l3, l4, l5 = _get_file_lists()
 
     assert list(l1) == list(Path(i) for i in "0123")
     assert list(l2) == list(Path(i) for i in "abc")
     assert list(l3) == list(Path(i) for i in "0123abc")
     assert list(l4) == list(Path(i) for i in "0123abc")
+    assert list(l5) == list(Path(i) for i in "abc")
 
 
 def test_file_list_contains():
-    l1, l2, l3, l4 = _get_file_lists()
+    l1, l2, l3, l4, l5 = _get_file_lists()
 
     for i in "0123":
         assert i in l1
@@ -45,9 +47,14 @@ def test_file_list_contains():
     assert "5" not in l4
     assert "d" not in l4
 
+    for m in "abc":
+        assert m in l5
+    assert "5" not in l5
+    assert "d" not in l5
+
 
 def test_file_list_getitem():
-    l1, l2, l3, l4 = _get_file_lists()
+    l1, l2, l3, l4, l5 = _get_file_lists()
 
     for i in range(4):
         assert Path(str(i)) == l1[i]
@@ -78,14 +85,29 @@ def test_file_list_getitem():
     with raises(KeyError):
         l4["a"]
 
+    assert Path("a") == l5["abc"][0]
+    assert Path("b") == l5["abc"][1]
+    assert Path("c") == l5["abc"][2]
+    with raises(IndexError):
+        l5[0]
+    with raises(KeyError):
+        l5["a"]
+    with raises(IndexError):
+        l5["abc"][3]
+    with raises(KeyError):
+        l5["abc"]["a"]
+
 
 def test_file_list_str():
-    l1, l2, l3, l4 = _get_file_lists()
+    l1, l2, l3, l4, l5 = _get_file_lists()
 
     assert str(l1) == "FileList('0', '1', '2', '3')"
     assert str(l2) == "FileList(a='a', b='b', c='c')"
     assert str(l3) == "FileList('0', '1', '2', '3', a='a', b='b', c='c')"
-    assert str(l4) == "FileList('0', ['1', '2', '3'], abc=['a', 'b', 'c'])"
+    assert (
+        str(l4) == "FileList('0', FileList('1', '2', '3'), abc=FileList('a', 'b', 'c'))"
+    )
+    assert str(l5) == "FileList(abc=FileList('a', 'b', 'c'))"
 
 
 def test_file_list_from_any():
