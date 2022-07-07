@@ -132,6 +132,19 @@ def test_multi_index_new():
     assert mi._sep == "."
 
 
+def test_multi_index_new_from_multi_index():
+    mi1 = MultiIndex(1, 2, 3, sep="#")
+    assert str(mi1) == "1#2#3"
+
+    mi2 = MultiIndex(mi1)
+    assert mi1 == mi2
+    assert str(mi2) == "1#2#3"
+
+    mi3 = MultiIndex(mi1, sep=".")
+    assert mi1 == mi3
+    assert str(mi3) == "1.2.3"
+
+
 def test_multi_index_str():
     mi1 = MultiIndex(1, 2, 3)
     assert str(mi1) == "1.2.3"

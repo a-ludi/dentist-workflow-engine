@@ -122,9 +122,14 @@ class FileList:
 class MultiIndex(tuple):
     DEFAULT_SEP = "."
 
-    def __new__(cls, *args, sep=DEFAULT_SEP):
-        obj = tuple.__new__(cls, args)
-        obj._sep = str(sep)
+    def __new__(cls, *args, sep=None):
+        if len(args) == 1 and isinstance(args[0], cls):
+            obj = tuple.__new__(cls, args[0])
+            obj._sep = args[0]._sep if sep is None else str(sep)
+        else:
+            obj = tuple.__new__(cls, args)
+            obj._sep = cls.DEFAULT_SEP if sep is None else str(sep)
+
         return obj
 
     def __str__(self):
