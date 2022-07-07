@@ -121,16 +121,34 @@ class FileList:
 
 class MultiIndex(tuple):
     DEFAULT_SEP = "."
+    DEFAULT_RANGE_SEP = "-"
 
-    def __new__(cls, *args, sep=None):
-        if len(args) == 1 and isinstance(args[0], cls):
-            obj = tuple.__new__(cls, args[0])
-            obj._sep = args[0]._sep if sep is None else str(sep)
-        else:
-            obj = tuple.__new__(cls, args)
-            obj._sep = cls.DEFAULT_SEP if sep is None else str(sep)
+    def __new__(cls, *elements, sep=None, range_sep=None, collapse_ranges=True):
+        for elem in elements:
+            if not (
+                isinstance(elem, int)
+                or (
+                    isinstance(elem, tuple)
+                    and len(elem) == 2
+                    and all(isinstance(e, int) for e in elem)
+                )
+            ):
+                raise TypeError("MultIndex elements must be int or tuple of two ints")
+
+        obj = tuple.__new__(cls, elements)
+        obj._sep = cls.DEFAULT_SEP if sep is None else str(sep)
+        obj._range_sep = cls.DEFAULT_RANGE_SEP if range_sep is None else str(range_sep)
+        obj._collapse_ranges = collapse_ranges
 
         return obj
 
     def __str__(self):
-        return self._sep.join(str(item) for item in self)
+        def elem2str(elem):
+            if isinstance(elem, int):
+                return str(elem)
+            elif self._collapse_ranges and elem[0] == elem[1]:
+                return str(elem[0])
+            else:
+                return f"{elem[0]}{self._range_sep}{elem[1]}"
+
+        return self._sep.join(elem2str(elem) for elem in self)

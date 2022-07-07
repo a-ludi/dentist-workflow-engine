@@ -623,20 +623,17 @@ class Job(AbstractAction):
 
     @staticmethod
     def _check_index(index):
-        valid_type = (
-            index is None
-            or isinstance(index, int)
-            or (isinstance(index, tuple) and all(isinstance(e, int) for e in index))
-        )
-        if not valid_type:
-            raise ValueError(
-                "Job index must be None or integer or tuple/MultiIndex of integers."
-            )
-
-        if isinstance(index, tuple) and not isinstance(index, MultiIndex):
-            return MultiIndex(index)
-        else:
+        if index is None or isinstance(index, int):
             return index
+        elif isinstance(index, MultiIndex):
+            return index
+        else:
+            try:
+                return MultiIndex(*index)
+            except TypeError:
+                raise TypeError(
+                    "Job index must be None, int or (convertible to) MultiIndex."
+                )
 
     def check_pre_conditions(self, return_bool=False):
         if return_bool:

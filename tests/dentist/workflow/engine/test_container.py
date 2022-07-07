@@ -125,56 +125,73 @@ def test_file_list_from_any():
 
 
 def test_multi_index_new():
-    mi = MultiIndex(1, 2, 3)
-    assert mi[0] == 1
-    assert mi[1] == 2
-    assert mi[2] == 3
-    assert mi._sep == "."
+    mi1 = MultiIndex(1, 2, 3)
+    assert mi1[0] == 1
+    assert mi1[1] == 2
+    assert mi1[2] == 3
+    assert mi1._sep == MultiIndex.DEFAULT_SEP
+    assert mi1._range_sep == MultiIndex.DEFAULT_RANGE_SEP
 
+    mi2 = MultiIndex(1, (2, 4), 3, sep="|", range_sep="_")
+    assert mi2[0] == 1
+    assert mi2[1] == (2, 4)
+    assert mi2[2] == 3
+    assert mi2._sep == "|"
+    assert mi2._range_sep == "_"
 
-def test_multi_index_new_from_multi_index():
-    mi1 = MultiIndex(1, 2, 3, sep="#")
-    assert str(mi1) == "1#2#3"
+    with raises(TypeError):
+        MultiIndex(1, (2, 4, 5), 3)
 
-    mi2 = MultiIndex(mi1)
-    assert mi1 == mi2
-    assert str(mi2) == "1#2#3"
-
-    mi3 = MultiIndex(mi1, sep=".")
-    assert mi1 == mi3
-    assert str(mi3) == "1.2.3"
+    with raises(TypeError):
+        MultiIndex(1, "a", 3)
 
 
 def test_multi_index_str():
     mi1 = MultiIndex(1, 2, 3)
     assert str(mi1) == "1.2.3"
 
-    mi2 = MultiIndex("a", "b", "c", sep="|")
-    assert str(mi2) == "a|b|c"
+    mi2 = MultiIndex(1, 2, 3, sep="|")
+    assert str(mi2) == "1|2|3"
+
+    mi3 = MultiIndex(1, (2, 4), 3)
+    assert str(mi3) == "1.2-4.3"
+
+    mi4 = MultiIndex(1, (2, 4), (3, 3))
+    assert str(mi4) == "1.2-4.3"
+
+    mi5 = MultiIndex(1, (2, 4), (3, 3), collapse_ranges=False)
+    assert str(mi5) == "1.2-4.3-3"
 
 
 def test_multi_index_eq_with_tuple():
     mi1 = MultiIndex(1, 2, 3)
     assert mi1 == (1, 2, 3)
 
-    mi2 = MultiIndex("a", "b", "c", sep="|")
-    assert mi2 == ("a", "b", "c")
+    mi2 = MultiIndex(1, 2, 3, sep="|")
+    assert mi2 == (1, 2, 3)
+
+    mi3 = MultiIndex(1, (2, 4), 3)
+    assert mi3 == (1, (2, 4), 3)
 
 
 def test_multi_index_hash_with_tuple():
     mi1 = MultiIndex(1, 2, 3)
-    mi2 = MultiIndex("a", "b", "c", sep="|")
-    d = {mi1: 1, mi2: 2}
+    mi2 = MultiIndex(1, 2, 3, sep="|")
+    mi3 = MultiIndex(1, (2, 4), 3)
+    d = {mi1: 1, mi2: 2, mi3: 3}
 
     assert mi1 in d
     assert (1, 2, 3) in d
     assert mi2 in d
-    assert ("a", "b", "c") in d
+    assert (1, 2, 3) in d
+    assert mi3 in d
+    assert (1, (2, 4), 3) in d
 
 
 def test_multi_index_inheritance():
-    class RangeIndex(MultiIndex):
-        DEFAULT_SEP = "-"
+    class MyMultiIndex(MultiIndex):
+        DEFAULT_SEP = "|"
+        DEFAULT_RANGE_SEP = "_"
 
-    ri = RangeIndex(1, 10)
-    assert str(ri) == "1-10"
+    ri = MyMultiIndex(1, (2, 3))
+    assert str(ri) == "1|2_3"
