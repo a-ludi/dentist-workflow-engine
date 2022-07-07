@@ -603,15 +603,7 @@ class Job(AbstractAction):
         post_conditions=[],
     ):
         self.name = name
-        self.index = index
-        if (
-            self.index is not None
-            and not isinstance(self.index, int)
-            and not isinstance(self.index, tuple)
-        ):
-            raise ValueError("Job index must be None or integer.")
-        if isinstance(self.index, tuple) and not isinstance(self.index, MultiIndex):
-            self.index = MultiIndex(self.index)
+        self.index = Job._check_index(index)
         self.exec_local = exec_local
         if action.local_only and not self.exec_local:
             raise ValueError("Must set `exec_local=True` for local-only action")
@@ -628,6 +620,23 @@ class Job(AbstractAction):
         self.id = None
         self.pre_conditions = pre_conditions
         self.post_conditions = post_conditions
+
+    @staticmethod
+    def _check_index(index):
+        valid_type = (
+            index is None
+            or isinstance(index, int)
+            or (isinstance(index, tuple) and all(isinstance(e, int) for e in index))
+        )
+        if not valid_type:
+            raise ValueError(
+                "Job index must be None or integer or tuple/MultiIndex of integers."
+            )
+
+        if isinstance(index, tuple) and not isinstance(index, MultiIndex):
+            return MultiIndex(index)
+        else:
+            return index
 
     def check_pre_conditions(self, return_bool=False):
         if return_bool:
