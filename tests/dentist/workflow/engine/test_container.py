@@ -3,7 +3,7 @@ from pathlib import Path
 
 from pytest import raises
 
-from dentist.workflow.engine.container import FileList
+from dentist.workflow.engine.container import FileList, MultiIndex
 
 
 def _get_file_lists():
@@ -122,3 +122,38 @@ def test_file_list_from_any():
 
     l4 = ["foo", "bar"]
     assert FileList.from_any(l4) == FileList(*l4)
+
+
+def test_multi_index_new():
+    mi = MultiIndex(1, 2, 3)
+    assert mi[0] == 1
+    assert mi[1] == 2
+    assert mi[2] == 3
+    assert mi._sep == "."
+
+
+def test_multi_index_str():
+    mi1 = MultiIndex(1, 2, 3)
+    assert str(mi1) == "1.2.3"
+
+    mi2 = MultiIndex("a", "b", "c", sep="|")
+    assert str(mi2) == "a|b|c"
+
+
+def test_multi_index_eq_with_tuple():
+    mi1 = MultiIndex(1, 2, 3)
+    assert mi1 == (1, 2, 3)
+
+    mi2 = MultiIndex("a", "b", "c", sep="|")
+    assert mi2 == ("a", "b", "c")
+
+
+def test_multi_index_hash_with_tuple():
+    mi1 = MultiIndex(1, 2, 3)
+    mi2 = MultiIndex("a", "b", "c", sep="|")
+    d = {mi1: 1, mi2: 2}
+
+    assert mi1 in d
+    assert (1, 2, 3) in d
+    assert mi2 in d
+    assert ("a", "b", "c") in d

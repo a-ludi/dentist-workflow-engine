@@ -9,7 +9,7 @@ from sys import argv
 
 from . import executors
 from .actions import AbstractAction
-from .container import FileList
+from .container import FileList, MultiIndex
 from .executors import AbstractExecutor, JobFailed, LocalExecutor
 from .resources import RootResources
 from .util import inject, throws
@@ -604,7 +604,11 @@ class Job(AbstractAction):
     ):
         self.name = name
         self.index = index
-        if self.index is not None and not isinstance(self.index, int):
+        if (
+            self.index is not None
+            and not isinstance(self.index, int)
+            and not isinstance(self.index, MultiIndex)
+        ):
             raise ValueError("Job index must be None or integer.")
         self.exec_local = exec_local
         if action.local_only and not self.exec_local:

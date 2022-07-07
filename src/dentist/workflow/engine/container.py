@@ -117,3 +117,15 @@ class FileList:
         )
 
         return f"FileList({', '.join(chain(pos_items, named_items))})"
+
+
+class MultiIndex(tuple):
+    DEFAULT_SEP = "."
+
+    def __new__(cls, *args, sep=DEFAULT_SEP):
+        obj = tuple.__new__(cls, args)
+        obj._sep = str(sep)
+        return obj
+
+    def __str__(self):
+        return self._sep.join(str(item) for item in self)
