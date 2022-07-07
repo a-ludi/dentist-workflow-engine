@@ -607,9 +607,11 @@ class Job(AbstractAction):
         if (
             self.index is not None
             and not isinstance(self.index, int)
-            and not isinstance(self.index, MultiIndex)
+            and not isinstance(self.index, tuple)
         ):
             raise ValueError("Job index must be None or integer.")
+        if isinstance(self.index, tuple) and not isinstance(self.index, MultiIndex):
+            self.index = MultiIndex(self.index)
         self.exec_local = exec_local
         if action.local_only and not self.exec_local:
             raise ValueError("Must set `exec_local=True` for local-only action")
