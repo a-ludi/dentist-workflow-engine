@@ -603,8 +603,6 @@ class Job(AbstractAction):
         post_conditions=[],
     ):
         self.name = name
-        if not self.name.isidentifier():
-            raise ValueError("Job names must be valid Python identifiers.")
         self.index = index
         if self.index is not None and not isinstance(self.index, int):
             raise ValueError("Job index must be None or integer.")
