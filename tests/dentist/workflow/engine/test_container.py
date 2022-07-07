@@ -146,6 +146,44 @@ def test_multi_index_new():
         MultiIndex(1, "a", 3)
 
 
+def test_multi_index_values():
+    mi1 = MultiIndex(1, 2, 3)
+    assert list(mi1.values()) == [(1, 2, 3)]
+
+    mi2 = MultiIndex((1, 2))
+    assert list(mi2.values()) == [1, 2]
+
+    mi3 = MultiIndex((1, 2), collapse_ranges=False)
+    assert list(mi3.values()) == [(1,), (2,)]
+
+    mi4 = MultiIndex(1, (2, 4), 3)
+    assert list(mi4.values()) == [
+        (1, 2, 3),
+        (1, 3, 3),
+        (1, 4, 3),
+    ]
+
+    mi5 = MultiIndex(1, (2, 4), (3, 3))
+    assert list(mi5.values()) == [
+        (1, 2, 3),
+        (1, 3, 3),
+        (1, 4, 3),
+    ]
+
+    mi6 = MultiIndex(1, (2, 4), (3, 5))
+    assert list(mi6.values()) == [
+        (1, 2, 3),
+        (1, 2, 4),
+        (1, 2, 5),
+        (1, 3, 3),
+        (1, 3, 4),
+        (1, 3, 5),
+        (1, 4, 3),
+        (1, 4, 4),
+        (1, 4, 5),
+    ]
+
+
 def test_multi_index_str():
     mi1 = MultiIndex(1, 2, 3)
     assert str(mi1) == "1.2.3"

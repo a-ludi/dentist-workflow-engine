@@ -133,7 +133,7 @@ class MultiIndex(tuple):
                     and all(isinstance(e, int) for e in elem)
                 )
             ):
-                raise TypeError("MultIndex elements must be int or tuple of two ints")
+                raise TypeError("MultiIndex elements must be int or tuple of two ints")
 
         obj = tuple.__new__(cls, elements)
         obj._sep = cls.DEFAULT_SEP if sep is None else str(sep)
@@ -141,6 +141,28 @@ class MultiIndex(tuple):
         obj._collapse_ranges = collapse_ranges
 
         return obj
+
+    def values(self):
+        if self._collapse_ranges and len(self) == 1 and not isinstance(self[0], int):
+            return range(self[0][0], self[0][1] + 1)
+        else:
+            return MultiIndex._values_rec(self)
+
+    @staticmethod
+    def _values_rec(index):
+        if len(index) == 0:
+            return (tuple(),)
+
+        if isinstance(index[0], int):
+            head = (index[0],)
+        else:
+            head = range(index[0][0], index[0][1] + 1)
+
+        return (
+            MultiIndex(elem, *values)
+            for elem in head
+            for values in MultiIndex._values_rec(index[1:])
+        )
 
     def __str__(self):
         def elem2str(elem):
