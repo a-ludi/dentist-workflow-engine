@@ -327,10 +327,10 @@ class Workflow(object):
         return job
 
     @staticmethod
-    def check_inputs(inputs):
+    def check_inputs(job, inputs):
         missing_inputs = [input for input in inputs if not input.exists()]
         if len(missing_inputs) > 0:
-            raise MissingInputs(missing_inputs)
+            raise MissingInputs([(job, missing_inputs)])
 
     def _check_outputs(self, inputs, outputs):
         input_mtime = max(
@@ -417,11 +417,14 @@ class Workflow(object):
             self._discard_files(job_failure.job.outputs)
             raise job_failure
 
-        incomplete_outputs = []
         for job in self.job_queue:
             assert job.state.is_done
-            incomplete_outputs.extend(self._check_outputs(job.inputs, job.outputs))
-        if len(incomplete_outputs) > 0:
+
+        incomplete_outputs = [
+            (job, self._check_outputs(job.inputs, job.outputs))
+            for job in self.job_queue
+        ]
+        if any(len(jf[1]) > 0 for jf in incomplete_outputs):
             raise IncompleteOutputs(incomplete_outputs)
 
         # reset job queue
@@ -629,6 +632,7 @@ class Job(AbstractAction):
         for handler in self.pre_conditions:
             handler = inject(
                 handler,
+                job=self,
                 name=self.name,
                 index=self.index,
                 inputs=self.inputs,
@@ -642,6 +646,7 @@ class Job(AbstractAction):
         for handler in self.post_conditions:
             handler = inject(
                 handler,
+                job=self,
                 name=self.name,
                 index=self.index,
                 inputs=self.inputs,
@@ -732,14 +737,22 @@ class FaultyFilesException(Exception):
     INDENT = "  "
     DESCRIPTION = "Faulty files"
 
-    def __init__(self, files):
+    def __init__(self, job_files):
         super().__init__()
-        self.files = files
+        self.job_files = job_files
 
     def __str__(self):
-        fnames = f"\n{self.INDENT}".join(str(f) for f in self.files)
+        file_indent = f"\n{2*self.INDENT}- "
 
-        return f"{self.DESCRIPTION}:\n{self.INDENT}{fnames}"
+        def file_list(files):
+            return file_indent.join(str(f) for f in files)
+
+        job_files = f"\n{self.INDENT}".join(
+            f"{jf[0].describe()}:{file_indent}{file_list(jf[1])}"
+            for jf in self.job_files
+        )
+
+        return f"{self.DESCRIPTION}:\n{self.INDENT}{job_files}"
 
 
 class MissingInputs(FaultyFilesException):
