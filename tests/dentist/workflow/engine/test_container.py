@@ -170,3 +170,11 @@ def test_multi_index_hash_with_tuple():
     assert (1, 2, 3) in d
     assert mi2 in d
     assert ("a", "b", "c") in d
+
+
+def test_multi_index_inheritance():
+    class RangeIndex(MultiIndex):
+        DEFAULT_SEP = "-"
+
+    ri = RangeIndex(1, 10)
+    assert str(ri) == "1-10"
