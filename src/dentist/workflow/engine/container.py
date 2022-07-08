@@ -170,13 +170,22 @@ class MultiIndex(tuple):
             for values in MultiIndex._values_rec(index[1:])
         )
 
-    def __str__(self):
+    def to_str(self, sep=None, range_sep=None, collapse_ranges=None):
+        sep = self._sep if sep is None else str(sep)
+        range_sep = self._range_sep if range_sep is None else str(range_sep)
+        collapse_ranges = (
+            self._collapse_ranges if collapse_ranges is None else bool(collapse_ranges)
+        )
+
         def elem2str(elem):
             if isinstance(elem, int):
                 return str(elem)
-            elif self._collapse_ranges and elem[0] == elem[1]:
+            elif collapse_ranges and elem[0] == elem[1]:
                 return str(elem[0])
             else:
-                return f"{elem[0]}{self._range_sep}{elem[1]}"
+                return f"{elem[0]}{range_sep}{elem[1]}"
 
-        return self._sep.join(elem2str(elem) for elem in self)
+        return sep.join(elem2str(elem) for elem in self)
+
+    def __str__(self):
+        return self.to_str()
