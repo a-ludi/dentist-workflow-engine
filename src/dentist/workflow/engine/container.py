@@ -81,6 +81,9 @@ class FileList:
                 f"cannot compare object of type {type(other)} with FileList"
             )
 
+    def keys(self):
+        return chain(range(self._num_positional), self._index.keys())
+
     def __getitem__(self, key):
         return self._items[self._lookup(key)]
 

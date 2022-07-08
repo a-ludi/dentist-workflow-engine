@@ -53,6 +53,16 @@ def test_file_list_contains():
     assert "d" not in l5
 
 
+def test_file_list_keys():
+    l1, l2, l3, l4, l5 = _get_file_lists()
+
+    assert list(l1.keys()) == list(range(4))
+    assert list(l2.keys()) == list("abc")
+    assert list(l3.keys()) == [*range(4), *"abc"]
+    assert list(l4.keys()) == [0, 1, "abc"]
+    assert list(l5.keys()) == ["abc"]
+
+
 def test_file_list_getitem():
     l1, l2, l3, l4, l5 = _get_file_lists()
 
