@@ -36,7 +36,10 @@ class FileList:
         try:
             return Path(item)
         except TypeError:
-            return FileList(*item)
+            if isinstance(item, dict):
+                return FileList(**item)
+            else:
+                return FileList(*item)
 
     @staticmethod
     def from_any(container):
