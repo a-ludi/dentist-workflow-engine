@@ -12,7 +12,7 @@ from .actions import AbstractAction
 from .container import FileList, MultiIndex
 from .executors import AbstractExecutor, JobFailed, LocalExecutor
 from .resources import RootResources
-from .util import inject, throws
+from .util import discard_files, inject, throws
 from .workdir import Workdir
 
 __all__ = [
@@ -367,9 +367,7 @@ class Workflow(object):
             raise Exception("inputs are newer than outputs")
 
     def _discard_files(self, files):
-        log.debug(f"discarding files: {', '.join(str(f) for f in files)}")
-        for file in files:
-            file.unlink(missing_ok=True)
+        discard_files(files, log)
 
     def execute_jobs(self, *, final=False):
         suffix = " (dry run)" if self.dry_run else ""

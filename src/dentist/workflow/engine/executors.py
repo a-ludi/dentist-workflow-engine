@@ -5,6 +5,8 @@ from inspect import signature
 from itertools import chain
 from time import sleep
 
+from .util import discard_files
+
 log = logging.getLogger(__name__)
 
 
@@ -199,8 +201,7 @@ class LocalExecutor(AbstractExecutor):
 
         if force:
             # delete outputs before running the command again
-            for output in job.outputs:
-                output.unlink(missing_ok=True)
+            discard_files(job.outputs, log)
 
         if callable(job.action):
             try:

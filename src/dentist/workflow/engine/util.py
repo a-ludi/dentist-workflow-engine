@@ -1,4 +1,5 @@
 import inspect
+from shutil import rmtree
 
 
 def inject(function, required=[], **vars):
@@ -31,3 +32,14 @@ def throws(fun, *, exception_cls=Exception):
         return True
 
     return False
+
+
+def discard_files(files, log=None):
+    if log is not None:
+        log.debug(f"discarding files: {', '.join(str(f) for f in files)}")
+
+    for file in files:
+        if file.is_dir():
+            rmtree(file)
+        else:
+            file.unlink(missing_ok=True)
