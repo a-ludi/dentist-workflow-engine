@@ -46,8 +46,22 @@ class JobFailure(Exception):
     def outputs(self):
         return list(chain.from_iterable(job.outputs for job in self.jobs))
 
+    def logs(self):
+        return [job.log for job in self.jobs if job.log is not None]
+
+    def has_logs(self):
+        return len(self.logs()) > 0
+
+    def _logs_notice(self):
+        notice = ""
+        if self.has_logs():
+            notice = "\n- ".join(str(log) for log in self.logs())
+            notice = f"\n\nCheck these log files:\n- {notice}"
+
+        return notice
+
     def __str__(self):
-        return f"{len(self.jobs)} job(s) failed: {self.reason}"
+        return f"{len(self.jobs)} job(s) failed: {self.reason}{self._logs_notice()}"
 
 
 class JobFailed(JobFailure):
@@ -61,8 +75,17 @@ class JobFailed(JobFailure):
     def outputs(self):
         return self.job.outputs
 
+    def log(self):
+        return self.job.log
+
+    def _log_notice(self):
+        if not self.has_logs():
+            return ""
+
+        return f"\n\nCheck this log file: {self.log()}"
+
     def __str__(self):
-        return f"job {self.job.describe()} failed: {self.reason}"
+        return f"job {self.job.describe()} failed: {self.reason}{self._log_notice()}"
 
 
 class JobBatchFailed(JobFailure):
@@ -73,7 +96,8 @@ class JobBatchFailed(JobFailure):
 
     def __str__(self):
         return (
-            f"{len(self.jobs)} of {self.total_jobs} batch job(s) failed:\n{self.reason}"
+            f"{len(self.jobs)} of {self.total_jobs} batch job(s) failed:\n"
+            f"{self.reason}{self._logs_notice()}"
         )
 
 
