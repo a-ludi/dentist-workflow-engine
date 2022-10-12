@@ -31,10 +31,10 @@ class AbstractExecutor(ABC):
             )
 
     def _dry_run(self, jobs, *, print_commands):
-        if print_commands:
-            for job in jobs:
-                job.done()
+        for job in jobs:
+            if print_commands:
                 print(job)
+            job.done()
 
     @abstractmethod
     def _run_jobs(self, jobs, *, force, print_commands, threads):
