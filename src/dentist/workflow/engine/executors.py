@@ -20,11 +20,13 @@ def report_job(job):
 class AbstractExecutor(ABC):
     requires_status_tracking = False
 
-    def __call__(self, jobs, *, dry_run, print_commands, threads):
+    def __call__(self, jobs, *, dry_run, force, print_commands, threads):
         if dry_run:
             self._dry_run(jobs, print_commands=print_commands)
         else:
-            self._run_jobs(jobs, print_commands=print_commands, threads=threads)
+            self._run_jobs(
+                jobs, force=force, print_commands=print_commands, threads=threads
+            )
 
     def _dry_run(self, jobs, *, print_commands):
         if print_commands:
@@ -33,7 +35,7 @@ class AbstractExecutor(ABC):
                 print(job)
 
     @abstractmethod
-    def _run_jobs(self, jobs, *, print_commands, threads):
+    def _run_jobs(self, jobs, *, force, print_commands, threads):
         raise NotImplementedError("Define exeuction method.")
 
 
@@ -121,17 +123,19 @@ class LocalExecutor(AbstractExecutor):
         self.workdir = optargs.get("workdir", None)
         self.debug_flags = optargs.get("debug_flags", set())
 
-    def _run_jobs(self, jobs, *, print_commands, threads=1):
+    def _run_jobs(self, jobs, *, force, print_commands, threads=1):
         if threads == 1 and len(jobs) <= 1:
-            self._run_serial(jobs, print_commands=print_commands)
+            self._run_serial(jobs, force=force, print_commands=print_commands)
         else:
-            self._run_parallel(jobs, print_commands=print_commands, threads=threads)
+            self._run_parallel(
+                jobs, force=force, print_commands=print_commands, threads=threads
+            )
 
-    def _run_serial(self, jobs, *, print_commands):
+    def _run_serial(self, jobs, *, force, print_commands):
         for job in jobs:
-            LocalExecutor._execute_job(job, print_commands=print_commands)
+            LocalExecutor._execute_job(job, force=force, print_commands=print_commands)
 
-    def _run_parallel(self, jobs, *, print_commands, threads):
+    def _run_parallel(self, jobs, *, force, print_commands, threads):
         from concurrent.futures import ThreadPoolExecutor
 
         for job in jobs:
@@ -170,6 +174,7 @@ class LocalExecutor(AbstractExecutor):
                         future = pool.submit(
                             LocalExecutor._execute_job,
                             job,
+                            force=force,
                             print_commands=print_commands,
                             return_error=True,
                         )
@@ -188,9 +193,14 @@ class LocalExecutor(AbstractExecutor):
             raise JobBatchFailed(errors, len(jobs))
 
     @staticmethod
-    def _execute_job(job, *, print_commands, return_error=False):
+    def _execute_job(job, *, force, print_commands, return_error=False):
         if print_commands:
             print(job)
+
+        if force:
+            # delete outputs before running the command again
+            for output in job.outputs:
+                output.unlink(missing_ok=True)
 
         if callable(job.action):
             try:

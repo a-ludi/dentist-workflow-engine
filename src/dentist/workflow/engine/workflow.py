@@ -403,6 +403,7 @@ class Workflow(object):
                 self.executor(
                     normal_jobs,
                     dry_run=self.dry_run,
+                    force=self.force,
                     print_commands=self.print_commands,
                     threads=self.threads,
                 )
@@ -410,6 +411,7 @@ class Workflow(object):
                 self.local_executor(
                     local_jobs,
                     dry_run=self.dry_run,
+                    force=self.force,
                     print_commands=self.print_commands,
                     threads=self.threads,
                 )
