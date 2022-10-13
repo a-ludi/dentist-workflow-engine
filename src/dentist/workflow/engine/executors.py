@@ -38,7 +38,7 @@ class AbstractExecutor(ABC):
 
     @abstractmethod
     def _run_jobs(self, jobs, *, force, print_commands, threads):
-        raise NotImplementedError("Define exeuction method.")
+        raise NotImplementedError("Define execution method.")
 
 
 class JobFailure(Exception):
