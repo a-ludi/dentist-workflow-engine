@@ -266,6 +266,9 @@ class DetachedExecutor(AbstractExecutor):
         for key, value in self.optargs.items():
             if key in submit_params:
                 submit_args[key] = value
+        if print_commands:
+            for job in jobs:
+                print(job)
         job_ids = self.submit_jobs(jobs, **submit_args)
         assert len(jobs) == len(job_ids)
         for id, job in zip(job_ids, jobs):
