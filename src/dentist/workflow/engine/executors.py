@@ -23,6 +23,9 @@ class AbstractExecutor(ABC):
     requires_status_tracking = False
 
     def __call__(self, jobs, *, dry_run, force, print_commands, threads):
+        log.info("executing jobs:")
+        for job in jobs:
+            log.info(f"- {job.describe()}")
         if dry_run:
             self._dry_run(jobs, print_commands=print_commands)
         else:
