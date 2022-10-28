@@ -373,7 +373,7 @@ class Workflow(object):
         suffix = " (dry run)" if self.dry_run else ""
 
         if len(self.job_queue) > 0:
-            self.__execute_jobs()
+            self.__finalize_queue()
             if not self._collect_group:
                 if final:
                     log.info("all jobs done" + suffix)
@@ -386,7 +386,7 @@ class Workflow(object):
                 else:
                     log.debug("no jobs to be flushed" + suffix)
 
-    def __execute_jobs(self):
+    def __finalize_queue(self):
         if self._collect_group:
             if len(self.job_queue) > 0:
                 self._group_job_batches.append(self.job_queue)
