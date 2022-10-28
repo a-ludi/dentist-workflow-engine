@@ -251,15 +251,15 @@ class DetachedExecutor(AbstractExecutor):
         self.check_delay = check_delay
         self.optargs = optargs
 
-    def _run_jobs(self, jobs, *, print_commands, threads=1):
-        self._submit_jobs(jobs, print_commands=print_commands)
+    def _run_jobs(self, jobs, *, force, print_commands, threads=1):
+        self._submit_jobs(jobs, force=force, print_commands=print_commands)
         self._wait_for_jobs(jobs)
 
     def _print_jobs(self, jobs):
         for job in jobs:
             print(job)
 
-    def _submit_jobs(self, jobs, *, print_commands):
+    def _submit_jobs(self, jobs, *, force, print_commands):
         self._print_jobs(jobs)
         submit_params = signature(self.submit_jobs).parameters
         submit_args = dict()
@@ -269,6 +269,10 @@ class DetachedExecutor(AbstractExecutor):
         if print_commands:
             for job in jobs:
                 print(job)
+        if force:
+            for job in jobs:
+                # delete outputs before running the command again
+                discard_files(job.outputs, log)
         job_ids = self.submit_jobs(jobs, **submit_args)
         assert len(jobs) == len(job_ids)
         for id, job in zip(job_ids, jobs):
