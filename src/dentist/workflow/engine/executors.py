@@ -228,7 +228,10 @@ class LocalExecutor(AbstractExecutor):
             try:
                 with job.open_log() as log_fp:
                     subprocess.run(
-                        job.to_command(), check=True, stdout=log_fp, stderr=log_fp
+                        job.action.to_command(),
+                        check=True,
+                        stdout=log_fp,
+                        stderr=log_fp,
                     )
                 job.done()
                 report_job(job)

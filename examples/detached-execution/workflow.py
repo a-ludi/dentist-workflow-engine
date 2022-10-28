@@ -43,7 +43,7 @@ def submit_jobs(jobs):
     from subprocess import Popen
 
     for job in jobs:
-        Popen(job.to_command())
+        Popen(job.action.to_command())
 
     return list(range(len(jobs)))
 

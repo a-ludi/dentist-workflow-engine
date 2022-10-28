@@ -704,7 +704,9 @@ class Job(AbstractAction):
                 yield fd
 
     def to_command(self):
-        return self.action.to_command()
+        raise NotImplementedError(
+            "Do not call job.to_command() directly; use job.action.to_command() instead"
+        )
 
     def __str__(self):
         action_str = str(self.action)
