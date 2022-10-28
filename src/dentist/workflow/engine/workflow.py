@@ -171,11 +171,12 @@ class Workflow(object):
             submitter = import_module(f"..interfaces.{submit_jobs}", _package_name)
             submit_jobs = submitter.submit_jobs
 
+        optargs = {
+            "workdir": job_scripts_dir,
+            "debug_flags": debug_flags,
+        }
+
         if executor is None:
-            optargs = {
-                "workdir": job_scripts_dir,
-                "debug_flags": debug_flags,
-            }
             if submit_jobs is None:
                 return executors.LocalExecutor(optargs=optargs)
             else:
@@ -189,9 +190,9 @@ class Workflow(object):
             return executor
         elif isinstance(executor, str):
             executor_class = getattr(executors, executor)
-            return executor_class()
+            return executor_class(optargs=optargs)
         elif issubclass(executor, AbstractExecutor):
-            return executor()
+            return executor(optargs=optargs)
 
     def __call__(self, *args, **kwargs):
         log.info(f"Executing workflow `{self.name}`")
