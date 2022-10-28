@@ -36,6 +36,7 @@ _type = {
     "keep_temp": bool,
     "delete_temp": bool,
     "print_commands": bool,
+    "touch": bool,
     "threads": int,
     "resources": Path,
     "submit_jobs": str,
@@ -43,7 +44,10 @@ _type = {
     "debug_flags": str,
 }
 _metavar = {}
-_shortopts = {"dry_run": ["-n"]}
+_shortopts = {
+    "dry_run": ["-n"],
+    "touch": ["-t"],
+}
 _choices = {"submit_jobs": interfaces.names}
 _nargs = {}
 _action = {
@@ -61,6 +65,11 @@ _help = {
     "keep_temp": "Do not delete temporary intermediate results.",
     "delete_temp": "Force deletion of temporary intermediate results.",
     "print_commands": "Print the commands that are executed.",
+    "touch": """
+        Touch files (mark them up to date without really changing them)
+        instead of running their commands. This is used to pretend that the
+        commands were done.
+    """,
     "threads": "Number of threads to use in local execution.",
     "resources": """
         YAML or JSON file that specifies resources for jobs. Resources are

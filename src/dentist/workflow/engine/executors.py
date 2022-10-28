@@ -21,9 +21,10 @@ def report_job(job):
 
 class AbstractExecutor(ABC):
     requires_status_tracking = False
+    _logmsg_exec = "executing jobs:"
 
     def __call__(self, jobs, *, dry_run, force, print_commands, threads):
-        log.info("executing jobs:")
+        log.info(self._logmsg_exec)
         for job in jobs:
             log.info(f"- {job.describe()}")
         if dry_run:
@@ -244,6 +245,80 @@ class LocalExecutor(AbstractExecutor):
                     return JobFailed(job, reason)
                 else:
                     raise JobFailed(job, reason)
+
+
+class TouchExecutor(LocalExecutor):
+    _logmsg_exec = "touching job outputs:"
+
+    def __init__(self, *, optargs=dict()):
+        self.debug_flags = optargs.get("debug_flags", set())
+
+    def _run_jobs(self, jobs, *, force, print_commands, threads=1):
+        if threads == 1 and len(jobs) <= 1:
+            self._touch_serial(jobs, force=force, print_commands=print_commands)
+        else:
+            self._touch_parallel(
+                jobs, force=force, print_commands=print_commands, threads=threads
+            )
+
+    def _touch_serial(self, jobs, *, force, print_commands):
+        for job in jobs:
+            TouchExecutor._touch_job(job, force=force, print_commands=print_commands)
+
+    def _touch_parallel(self, jobs, *, force, print_commands, threads):
+        from concurrent.futures import ThreadPoolExecutor
+
+        errors = list()
+
+        def job_finished_cb(future):
+            nonlocal errors
+
+            assert future.done()
+            result = future.result()
+
+            if isinstance(result, Exception):
+                if isinstance(result, JobFailed):
+                    errors.append(result)
+                else:
+                    raise result
+
+        with ThreadPoolExecutor(max_workers=threads) as pool:
+            for job in jobs:
+                future = pool.submit(
+                    TouchExecutor._touch_job,
+                    job,
+                    force=force,
+                    print_commands=print_commands,
+                    return_error=True,
+                )
+                future.add_done_callback(job_finished_cb)
+
+        errors = [e for e in errors if e is not None]
+        if len(errors) > 0:
+            raise JobBatchFailed(errors, len(jobs))
+
+    @staticmethod
+    def _touch_job(job, *, force, print_commands, return_error=False):
+        if print_commands:
+            print(job)
+
+        try:
+            for output in job.outputs:
+                if output.exists():
+                    output.touch()
+                else:
+                    raise FileNotFoundError(
+                        "output file does not exists: refusing to touch it"
+                    )
+            job.done()
+            report_job(job)
+        except Exception as reason:
+            job.failed(1)
+            report_job(job)
+            if return_error:
+                return JobFailed(job, reason)
+            else:
+                raise JobFailed(job, reason)
 
 
 class DetachedExecutor(AbstractExecutor):

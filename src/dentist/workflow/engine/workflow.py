@@ -34,6 +34,7 @@ def workflow(definition):
         workflow_root=None,
         dry_run=False,
         print_commands=False,
+        touch=False,
         executor=None,
         local_executor=None,
         submit_jobs=None,
@@ -52,6 +53,7 @@ def workflow(definition):
             workflow_root=workflow_root,
             dry_run=dry_run,
             print_commands=print_commands,
+            touch=touch,
             executor=executor,
             local_executor=local_executor,
             submit_jobs=submit_jobs,
@@ -84,6 +86,7 @@ class Workflow(object):
         keep_temp=False,
         delete_temp=False,
         print_commands=False,
+        touch=False,
         # --- execution configuration ---
         threads=1,
         resources=None,
@@ -122,6 +125,7 @@ class Workflow(object):
         # --- operation control flags ---
         self.dry_run = dry_run
         self.print_commands = print_commands
+        self.touch = touch
         self.force = force
         self.keep_temp = keep_temp
         self.delete_temp = delete_temp
@@ -137,6 +141,7 @@ class Workflow(object):
         job_scripts_dir = self.workdir.acquire_dir("job-scripts", force_empty=True)
         self.executor = self.make_executor(
             executor,
+            touch=self.touch,
             submit_jobs=submit_jobs,
             check_delay=check_delay,
             job_scripts_dir=job_scripts_dir,
@@ -145,6 +150,7 @@ class Workflow(object):
         self.status_tracking = self.executor.requires_status_tracking
         self.local_executor = self.make_executor(
             local_executor,
+            touch=self.touch,
             submit_jobs=None,
             check_delay=check_delay,
             job_scripts_dir=job_scripts_dir,
@@ -165,7 +171,7 @@ class Workflow(object):
 
     @staticmethod
     def make_executor(
-        executor, *, submit_jobs, check_delay, job_scripts_dir, debug_flags
+        executor, *, touch, submit_jobs, check_delay, job_scripts_dir, debug_flags
     ):
         if isinstance(submit_jobs, str):
             submitter = import_module(f"..interfaces.{submit_jobs}", _package_name)
@@ -175,6 +181,9 @@ class Workflow(object):
             "workdir": job_scripts_dir,
             "debug_flags": debug_flags,
         }
+
+        if touch:
+            return executors.TouchExecutor(optargs=optargs)
 
         if executor is None:
             if submit_jobs is None:
