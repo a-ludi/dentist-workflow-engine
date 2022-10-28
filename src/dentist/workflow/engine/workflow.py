@@ -133,6 +133,25 @@ class Workflow(object):
             raise ValueError("must not provide both `delete_temp` and `keep_temp`")
 
         # --- execution configuration ---
+
+        def force_executor(cause_flag, forced_executor):
+            nonlocal submit_jobs, executor, local_executor
+
+            if submit_jobs is not None:
+                log.warning(f"ignoring `submit_jobs` in due to `{cause_flag}`")
+            submit_jobs = None
+
+            if executor is not None:
+                log.warning(f"ignoring `executor` in due to `{cause_flag}`")
+            executor = forced_executor
+
+            if local_executor is not LocalExecutor:
+                log.warning(f"ignoring `local_executor` in due to `{cause_flag}`")
+            local_executor = executor
+
+        if self.touch:
+            force_executor("touch", executors.TouchExecutor)
+
         self.threads = threads
         if resources is None:
             self.resources = RootResources()
@@ -141,7 +160,6 @@ class Workflow(object):
         job_scripts_dir = self.workdir.acquire_dir("job-scripts", force_empty=True)
         self.executor = self.make_executor(
             executor,
-            touch=self.touch,
             submit_jobs=submit_jobs,
             check_delay=check_delay,
             job_scripts_dir=job_scripts_dir,
@@ -150,7 +168,6 @@ class Workflow(object):
         self.status_tracking = self.executor.requires_status_tracking
         self.local_executor = self.make_executor(
             local_executor,
-            touch=self.touch,
             submit_jobs=None,
             check_delay=check_delay,
             job_scripts_dir=job_scripts_dir,
@@ -171,7 +188,7 @@ class Workflow(object):
 
     @staticmethod
     def make_executor(
-        executor, *, touch, submit_jobs, check_delay, job_scripts_dir, debug_flags
+        executor, *, submit_jobs, check_delay, job_scripts_dir, debug_flags
     ):
         if isinstance(submit_jobs, str):
             submitter = import_module(f"..interfaces.{submit_jobs}", _package_name)
@@ -181,9 +198,6 @@ class Workflow(object):
             "workdir": job_scripts_dir,
             "debug_flags": debug_flags,
         }
-
-        if touch:
-            return executors.TouchExecutor(optargs=optargs)
 
         if executor is None:
             if submit_jobs is None:
