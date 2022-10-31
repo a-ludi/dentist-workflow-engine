@@ -34,7 +34,7 @@ _type = {
     "dry_run": bool,
     "force": bool,
     "keep_temp": bool,
-    "delete_temp": bool,
+    "force_delete_temp": bool,
     "print_commands": bool,
     "touch": bool,
     "delete_outputs": bool,
@@ -64,7 +64,11 @@ _help = {
     "dry_run": "Just display what would be done but do not execute anything.",
     "force": "Unconditionally recreate files.",
     "keep_temp": "Do not delete temporary intermediate results.",
-    "delete_temp": "Force deletion of temporary intermediate results.",
+    "force_delete_temp": """
+        Force deletion of temporary intermediate results.
+        This is useful after a run with --keep-temp because temporary
+        intermediate results are not deleted when the group job is skipped.
+    """,
     "print_commands": "Print the commands that are executed.",
     "touch": """
         Touch files (mark them up to date without really changing them)

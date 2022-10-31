@@ -43,7 +43,7 @@ def workflow(definition):
         threads=1,
         force=False,
         keep_temp=False,
-        delete_temp=False,
+        force_delete_temp=False,
         workflow_dir=".workflow",
         resources=None,
         debug_flags=set(),
@@ -63,7 +63,7 @@ def workflow(definition):
             threads=threads,
             force=force,
             keep_temp=keep_temp,
-            delete_temp=delete_temp,
+            force_delete_temp=force_delete_temp,
             workflow_dir=workflow_dir,
             resources=resources,
             debug_flags=debug_flags,
@@ -86,7 +86,7 @@ class Workflow(object):
         dry_run=False,
         force=False,
         keep_temp=False,
-        delete_temp=False,
+        force_delete_temp=False,
         print_commands=False,
         touch=False,
         delete_outputs=False,
@@ -134,9 +134,11 @@ class Workflow(object):
             raise ValueError("must not provide both `touch` and `delete_outputs`")
         self.force = force or delete_outputs
         self.keep_temp = keep_temp or delete_outputs
-        self.delete_temp = delete_temp and not delete_outputs
-        if self.keep_temp and self.delete_temp:
-            raise ValueError("must not provide both `delete_temp` and `keep_temp`")
+        self.force_delete_temp = force_delete_temp and not delete_outputs
+        if self.keep_temp and self.force_delete_temp:
+            raise ValueError(
+                "must not provide both `force_delete_temp` and `keep_temp`"
+            )
 
         # --- execution configuration ---
 
@@ -517,7 +519,7 @@ class Workflow(object):
                 f"skipping group job `{self._group_job_name}`: "
                 "all outputs are up-to-date"
             )
-            if not self.delete_temp:
+            if not self.force_delete_temp:
                 # prevent modification of intermediate files
                 self._group_job_batches = []
 
