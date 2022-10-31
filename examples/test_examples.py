@@ -25,7 +25,7 @@ def _get_workflow_args(example_name, select_args):
         count=10,
         delete_outputs=True,
     )
-    wf_args = dict(check_delay=0.1)
+    wf_args = dict(check_delay=0.01)
     for arg in select_args:
         wf_args[arg] = args[arg]
 
@@ -79,3 +79,8 @@ def test_workflow_file_lists():
 def test_workflow_delete_outputs():
     _test_workflow("delete-outputs", {"outdir"})
     _test_workflow("delete-outputs", {"outdir", "delete_outputs"}, clean_outdir=False)
+
+
+def test_workflow_targets_test():
+    _test_workflow("targets-test", {"count", "outdir"})
+    _test_workflow("targets-test", {"count", "outdir"}, clean_outdir=False)

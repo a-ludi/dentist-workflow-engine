@@ -31,6 +31,7 @@ _skip_cli = [
 _type = {
     "workflow_root": Path,
     "workflow_dir": Path,
+    "targets": str,
     "dry_run": bool,
     "force": bool,
     "keep_temp": bool,
@@ -46,6 +47,7 @@ _type = {
 }
 _metavar = {}
 _shortopts = {
+    "targets": ["-T"],
     "dry_run": ["-n"],
     "touch": ["-t"],
 }
@@ -53,6 +55,7 @@ _choices = {"submit_jobs": interfaces.names}
 _nargs = {}
 _action = {
     bool: "store_true",
+    "targets": CollectSet,
     "debug_flags": CollectSet,
 }
 _help = {
@@ -61,6 +64,9 @@ _help = {
         --workflow-dir will be created.
     """,
     "workflow_dir": "Location of files that are required by the workflow engine.",
+    "targets": """
+        Run workflow until all target jobs have been executed – successfully or not.
+    """,
     "dry_run": "Just display what would be done but do not execute anything.",
     "force": "Unconditionally recreate files.",
     "keep_temp": "Do not delete temporary intermediate results.",

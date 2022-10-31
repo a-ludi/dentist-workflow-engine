@@ -23,7 +23,7 @@ def example_workflow(workflow, *, count, outdir):
         )
     workflow.execute_jobs()
 
-    final_job = workflow.collect_job(
+    workflow.collect_job(
         name="concat_results",
         inputs=list(
             chain.from_iterable(
@@ -35,11 +35,6 @@ def example_workflow(workflow, *, count, outdir):
             ("cat", *inputs, safe(">"), outputs[0])
         ),
     )
-
-    workflow.execute_jobs()
-    with final_job.outputs[0].open() as file:
-        expected = "\n".join(f"data-{i:05d}" for i in range(count)) + "\n"
-        assert file.read() == expected
 
 
 def main():
@@ -64,9 +59,14 @@ def main():
         "`./results` relative to the workflow file",
     )
     params = vars(parser.parse_args())
-    params.setdefault("resources", "resources.json")
+    del params["targets"]
     logging.basicConfig(level=params.pop("log_level"))
-    example_workflow(**params)
+    example_workflow(targets={"generate.1"}, **params)
+
+    assert (params["outdir"] / "file_1").exists()
+    for i in range(2, params["count"] + 1):
+        assert not (params["outdir"] / f"file_{i}").exists()
+    assert not (params["outdir"] / "combined.out").exists()
 
 
 if __name__ == "__main__":

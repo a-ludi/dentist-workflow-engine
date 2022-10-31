@@ -32,6 +32,7 @@ def workflow(definition):
     def wrapper(
         *args,
         workflow_root=None,
+        targets=set(),
         dry_run=False,
         print_commands=False,
         touch=False,
@@ -52,6 +53,7 @@ def workflow(definition):
         _workflow = Workflow(
             definition=definition,
             workflow_root=workflow_root,
+            targets=targets,
             dry_run=dry_run,
             print_commands=print_commands,
             touch=touch,
@@ -83,6 +85,7 @@ class Workflow(object):
         workflow_root=None,
         workflow_dir=".workflow",
         # --- operation control flags ---
+        targets=set(),
         dry_run=False,
         force=False,
         keep_temp=False,
@@ -126,6 +129,7 @@ class Workflow(object):
         log.debug(f"workdir={self.workdir}")
 
         # --- operation control flags ---
+        self.targets = targets
         self.dry_run = dry_run or delete_outputs
         self.print_commands = print_commands
         self.touch = touch
@@ -195,12 +199,21 @@ class Workflow(object):
         self._collect_group = False
         self._group_job_batches = []
         self._group_job_name = None
+        self._pending_targets = dict()
+        for target in self.targets.copy():
+            name, _, index = target.partition(".")
+            if len(index) == 0:
+                self._pending_targets[name] = None
+            else:
+                self._pending_targets.setdefault(name, set())
+                self._pending_targets[name].add(index)
 
         # --- config reporting ---
         self.config_attrs = """
             name
             debug_flags
             workdir
+            targets
             dry_run
             print_commands
             touch
@@ -254,6 +267,11 @@ class Workflow(object):
             self.execute_jobs(final=True)
         except AssertionError as error:
             raise error
+        except TargetsReached:
+            if len(self.targets) > 1:
+                log.info(f"targets `{'`, `'.join(self.targets)}` have been reached.")
+            else:
+                log.info(f"target `{next(iter(self.targets))}` has been reached.")
         except Exception as reason:
             if self.delete_outputs:
                 last_job = list(self.jobs.values())[-1]
@@ -389,6 +407,15 @@ class Workflow(object):
         return action
 
     def __collect_job(self, job):
+        if (
+            len(self._pending_targets) == 1
+            and job.is_batch
+            and job.name in self._pending_targets
+            and str(job.index) not in self._pending_targets[job.name]
+        ):
+            log.debug(f"deselecting job {job.describe()} (not required for targets)")
+            return
+
         if self._collect_group:
             self.job_queue.append(job)
         else:
@@ -401,6 +428,7 @@ class Workflow(object):
                 self.job_queue.append(job)
             else:
                 log.debug(f"skipping job {job.describe()}: all outputs are up-to-date")
+                self.__update_pending_jobs([job])
 
         if job.index is None:
             jobs_db = self.jobs
@@ -491,6 +519,9 @@ class Workflow(object):
                 else:
                     log.debug("no jobs to be flushed" + suffix)
 
+        if self.__all_targets_reached():
+            raise TargetsReached()
+
     def __finalize_queue(self):
         if self._collect_group:
             if len(self.job_queue) > 0:
@@ -521,6 +552,8 @@ class Workflow(object):
         except JobFailed as job_failure:
             self._discard_files(job_failure.job.outputs)
             raise job_failure
+        finally:
+            self.__update_pending_jobs(self.job_queue)
 
         for job in self.job_queue:
             assert job.state.is_done
@@ -559,6 +592,24 @@ class Workflow(object):
             if not self.force_delete_temp:
                 # prevent modification of intermediate files
                 self._group_job_batches = []
+
+    def __update_pending_jobs(self, reached_jobs):
+        for job in reached_jobs:
+            if job.name in self._pending_targets:
+                if job.is_batch:
+                    self._pending_targets[job.name].discard(str(job.index))
+                else:
+                    del self._pending_targets[job.name]
+
+    def __all_targets_reached(self):
+        if len(self.targets) == 0:
+            return False
+
+        for name, indices in self._pending_targets.items():
+            if indices is None or len(indices) > 0:
+                return False
+
+        return True
 
     def __clean_group_intermediates(self):
         assert self._collect_group
@@ -611,6 +662,7 @@ class Workflow(object):
         pre_conditions=[],
         post_conditions=[],
     ):
+        # FIXME `targets` that are intermediate jobs may not work properly
         if self.force and not self.delete_outputs:
             # execute everything as normal if force
             yield
@@ -853,6 +905,11 @@ class Job(AbstractAction):
     @property
     def hash(self):
         return md5(bytes(self.fullname, "utf-8")).hexdigest()
+
+
+class TargetsReached(Exception):
+    def __init__(self):
+        super().__init__("all targets have been reached")
 
 
 class DuplicateJob(Exception):
