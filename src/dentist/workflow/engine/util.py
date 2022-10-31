@@ -39,7 +39,14 @@ def discard_files(files, log=None):
         log.debug(f"discarding files: {', '.join(str(f) for f in files)}")
 
     for file in files:
+        if log is not None:
+            exists_before = file.exists()
+
         if file.is_dir():
             rmtree(file)
         else:
             file.unlink(missing_ok=True)
+
+        if log is not None:
+            if exists_before and file.exists():
+                log.error(f"file could not be deleted: {file}")

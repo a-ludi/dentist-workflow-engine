@@ -1,6 +1,9 @@
 import importlib.util
+import logging
 from pathlib import Path
 from shutil import rmtree
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 def _load_workflow_module(example_name):
