@@ -23,19 +23,21 @@ def _get_workflow_args(example_name, select_args):
         indir=workflow_root / "inputs",
         outdir=workflow_root / "results",
         count=10,
+        delete_outputs=True,
     )
-    wf_args = {"check_delay": 0.1}
+    wf_args = dict(check_delay=0.1)
     for arg in select_args:
         wf_args[arg] = args[arg]
 
     return wf_args
 
 
-def _test_workflow(example_name, select_args):
+def _test_workflow(example_name, select_args, clean_outdir=True):
     workflow_mod = _load_workflow_module(example_name)
     wf_args = _get_workflow_args(example_name, select_args)
 
-    rmtree(wf_args["outdir"], ignore_errors=True)
+    if clean_outdir:
+        rmtree(wf_args["outdir"], ignore_errors=True)
     if hasattr(workflow_mod, "example_workflow"):
         workflow_mod.example_workflow(**wf_args)
     else:
@@ -72,3 +74,8 @@ def test_workflow_slurm():
 
 def test_workflow_file_lists():
     _test_workflow("file-lists", {"indir", "outdir"})
+
+
+def test_workflow_delete_outputs():
+    _test_workflow("delete-outputs", {"outdir"})
+    _test_workflow("delete-outputs", {"outdir", "delete_outputs"}, clean_outdir=False)

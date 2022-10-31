@@ -35,6 +35,7 @@ def workflow(definition):
         dry_run=False,
         print_commands=False,
         touch=False,
+        delete_outputs=False,
         executor=None,
         local_executor=None,
         submit_jobs=None,
@@ -54,6 +55,7 @@ def workflow(definition):
             dry_run=dry_run,
             print_commands=print_commands,
             touch=touch,
+            delete_outputs=delete_outputs,
             executor=executor,
             local_executor=local_executor,
             submit_jobs=submit_jobs,
@@ -87,6 +89,7 @@ class Workflow(object):
         delete_temp=False,
         print_commands=False,
         touch=False,
+        delete_outputs=False,
         # --- execution configuration ---
         threads=1,
         resources=None,
@@ -123,12 +126,15 @@ class Workflow(object):
         log.debug(f"workdir={self.workdir}")
 
         # --- operation control flags ---
-        self.dry_run = dry_run
+        self.dry_run = dry_run or delete_outputs
         self.print_commands = print_commands
         self.touch = touch
-        self.force = force
-        self.keep_temp = keep_temp
-        self.delete_temp = delete_temp
+        self.delete_outputs = delete_outputs
+        if self.touch and self.delete_outputs:
+            raise ValueError("must not provide both `touch` and `delete_outputs`")
+        self.force = force or delete_outputs
+        self.keep_temp = keep_temp or delete_outputs
+        self.delete_temp = delete_temp and not delete_outputs
         if self.keep_temp and self.delete_temp:
             raise ValueError("must not provide both `delete_temp` and `keep_temp`")
 
@@ -145,12 +151,14 @@ class Workflow(object):
                 log.warning(f"ignoring `executor` in due to `{cause_flag}`")
             executor = forced_executor
 
-            if local_executor is not LocalExecutor:
+            if local_executor != forced_executor:
                 log.warning(f"ignoring `local_executor` in due to `{cause_flag}`")
             local_executor = executor
 
         if self.touch:
             force_executor("touch", executors.TouchExecutor)
+        if self.delete_outputs:
+            force_executor("delete_outputs", local_executor)
 
         self.threads = threads
         if resources is None:
@@ -219,8 +227,23 @@ class Workflow(object):
 
     def __call__(self, *args, **kwargs):
         self.pre_run(*args, **kwargs)
-        self.run(*args, **kwargs)
-        self.execute_jobs(final=True)
+        try:
+            self.run(*args, **kwargs)
+            self.execute_jobs(final=True)
+        except AssertionError as error:
+            raise error
+        except Exception as reason:
+            if self.delete_outputs:
+                last_job = list(self.jobs.values())[-1]
+                if isinstance(last_job, dict):
+                    last_job = list(last_job.values())[-1]
+                log.warning(f"workflow stopped at job {last_job.describe()}")
+                log.debug(f"reason for stopping: {reason}")
+            else:
+                raise reason
+        finally:
+            if self.delete_outputs:
+                self.__delete_collected_outputs()
         self.post_run()
 
     def pre_run(self, *args, **kwargs):
@@ -396,6 +419,19 @@ class Workflow(object):
         elif input_mtime > output_mtime:
             raise Exception("inputs are newer than outputs")
 
+    def __delete_collected_outputs(self):
+        log.info("discarding outputs of all collected jobs")
+        self.__delete_collected_outputs_rec(self.jobs)
+        log.info("all outputs discarded")
+
+    def __delete_collected_outputs_rec(self, jobs_db):
+        for job in reversed(list(jobs_db.values())):
+            if isinstance(job, dict):
+                self.__delete_collected_outputs_rec(job)
+            else:
+                log.info(f"discarding outputs of job {job.describe()}")
+                self._discard_files(job.outputs)
+
     def _discard_files(self, files):
         discard_files(files, log)
 
@@ -462,7 +498,7 @@ class Workflow(object):
 
     def __execute_group_job_batches(self):
         assert self._collect_group
-        assert not self.force
+        assert not self.force or self.delete_outputs
         num_jobs = sum(len(job_batch) for job_batch in self._group_job_batches)
 
         if num_jobs == 0:
@@ -536,29 +572,44 @@ class Workflow(object):
         pre_conditions=[],
         post_conditions=[],
     ):
-        if self.force:
+        if self.force and not self.delete_outputs:
             # execute everything as normal if force
             yield
         else:
-            self._collect_group = True
-            self._group_job_batches = []
-            self._group_job_name = group_name
-            self._group_job_pre_conditions = pre_conditions
-            self._group_job_pre_conditions.insert(
-                0, self.check_grouped_jobs_preconditions
-            )
-            self._group_job_post_conditions = post_conditions
-            self._group_job_post_conditions.append(self.is_group_up_to_date)
-            try:
+            with self.__collect_job_group(
+                group_name,
+                # disable temp_intermediates if delete_outputs
+                temp_intermediates=temp_intermediates and not self.delete_outputs,
+                pre_conditions=pre_conditions,
+                post_conditions=post_conditions,
+            ):
                 yield
-                self.execute_jobs(final=True)
-                self.__execute_group_job_batches()
-                if temp_intermediates:
-                    self.__clean_group_intermediates()
-            finally:
-                self._group_job_name = None
-                self._group_job_batches = []
-                self._collect_group = False
+
+    @contextmanager
+    def __collect_job_group(
+        self,
+        group_name,
+        temp_intermediates=False,
+        pre_conditions=[],
+        post_conditions=[],
+    ):
+        self._collect_group = True
+        self._group_job_batches = []
+        self._group_job_name = group_name
+        self._group_job_pre_conditions = pre_conditions
+        self._group_job_pre_conditions.insert(0, self.check_grouped_jobs_preconditions)
+        self._group_job_post_conditions = post_conditions
+        self._group_job_post_conditions.append(self.is_group_up_to_date)
+        try:
+            yield
+            self.execute_jobs(final=True)
+            self.__execute_group_job_batches()
+            if temp_intermediates:
+                self.__clean_group_intermediates()
+        finally:
+            self._group_job_name = None
+            self._group_job_batches = []
+            self._collect_group = False
 
     def check_group_pre_conditions(self, return_bool=False):
         if return_bool:
@@ -782,6 +833,10 @@ class FaultyFilesException(Exception):
     def __init__(self, job_files):
         super().__init__()
         self.job_files = job_files
+
+    @property
+    def jobs(self):
+        return [jf[0] for jf in self.job_files]
 
     def __str__(self):
         file_indent = f"\n{2*self.INDENT}- "

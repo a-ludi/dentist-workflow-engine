@@ -37,6 +37,7 @@ _type = {
     "delete_temp": bool,
     "print_commands": bool,
     "touch": bool,
+    "delete_outputs": bool,
     "threads": int,
     "resources": Path,
     "submit_jobs": str,
@@ -68,7 +69,12 @@ _help = {
     "touch": """
         Touch files (mark them up to date without really changing them)
         instead of running their commands. This is used to pretend that the
-        commands were done.
+        commands were done. Note, new files will not be created!
+    """,
+    "delete_outputs": """
+        Deletes all outputs that were collected during a forced dry run.
+        Note, this may not clean up all generated files.
+        Implies --dry-run and --force.
     """,
     "threads": "Number of threads to use in local execution.",
     "resources": """
