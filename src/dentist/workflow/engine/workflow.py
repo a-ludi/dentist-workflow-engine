@@ -196,6 +196,26 @@ class Workflow(object):
         self._group_job_batches = []
         self._group_job_name = None
 
+        # --- config reporting ---
+        self.config_attrs = """
+            name
+            debug_flags
+            workdir
+            dry_run
+            print_commands
+            touch
+            delete_outputs
+            force
+            keep_temp
+            force_delete_temp
+            threads
+            resources
+            executor
+            status_tracking
+            local_executor
+            local_status_tracking
+        """.split()
+
     @staticmethod
     def make_executor(
         executor, *, submit_jobs, check_delay, job_scripts_dir, debug_flags
@@ -250,6 +270,7 @@ class Workflow(object):
 
     def pre_run(self, *args, **kwargs):
         log.info(f"Executing workflow `{self.name}`")
+        log.info(f"effective config: {str(self.get_config())}")
 
     def run(self, *args, **kwargs):
         if self.definition is None:
@@ -262,6 +283,22 @@ class Workflow(object):
 
     def post_run(self):
         log.info(f"Workflow `{self.name}` finished.")
+
+    def get_config(self, attr=None):
+        if attr is None:
+            config = dict()
+            for attr in self.config_attrs:
+                config[attr] = self.get_config(attr)
+            return config
+
+        value = getattr(self, attr)
+
+        if isinstance(value, set):
+            value = list(value)
+        elif isinstance(value, AbstractExecutor):
+            value = type(value).__name__
+
+        return value
 
     def collect_job(
         self,

@@ -52,6 +52,9 @@ class RootResources(object):
     def __str__(self):
         return str(self._data)
 
+    def __repr__(self):
+        return repr(self._data)
+
 
 class Resources(dict):
     def to_cli(

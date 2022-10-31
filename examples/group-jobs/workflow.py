@@ -7,6 +7,7 @@ class ExampleWorkflow(Workflow):
     def __init__(self, *args, outdir, **kwargs):
         super().__init__(*args, **kwargs)
         self.outdir = outdir
+        self.config_attrs.extend("outdir".split())
 
     def run(self):
         self.create_outdir()

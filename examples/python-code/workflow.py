@@ -9,6 +9,7 @@ class ExampleWorkflow(Workflow):
         self.indir = indir
         self.outdir = outdir
         self.logdir = outdir / "logs"
+        self.config_attrs.extend("indir outdir logdir".split())
 
     def run(self):
         self.create_outdirs()

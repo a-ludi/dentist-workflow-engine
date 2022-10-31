@@ -65,3 +65,9 @@ class Workdir(object):
             self.acquire_dir(full_path.parent, exist_ok=True)
 
         return full_path
+
+    def __str__(self):
+        return str(self.root)
+
+    def __repr__(self):
+        return repr(str(self))
