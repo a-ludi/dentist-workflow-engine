@@ -218,10 +218,13 @@ class Workflow(object):
             return executor(optargs=optargs)
 
     def __call__(self, *args, **kwargs):
-        log.info(f"Executing workflow `{self.name}`")
+        self.pre_run(*args, **kwargs)
         self.run(*args, **kwargs)
         self.execute_jobs(final=True)
-        log.info(f"Workflow `{self.name}` finished.")
+        self.post_run()
+
+    def pre_run(self, *args, **kwargs):
+        log.info(f"Executing workflow `{self.name}`")
 
     def run(self, *args, **kwargs):
         if self.definition is None:
@@ -231,6 +234,9 @@ class Workflow(object):
                 raise NotImplementedError("`self.run()` not implemented")
 
         self.definition(self, *args, **kwargs)
+
+    def post_run(self):
+        log.info(f"Workflow `{self.name}` finished.")
 
     def collect_job(
         self,
